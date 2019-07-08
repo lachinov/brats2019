@@ -1,0 +1,67 @@
+Namespace(batchSize=6, models_path='/home/localadmin/segthor/models', nEpochs=5, name='test', splits=4, threads=12, train_path='/home/localadmin/segthor/data/train_resampled2_2_25', validation_path='/home/localadmin/segthor/data/train_resampled2_2_25')
+CV 4 splits
+[10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33
+ 34 35 36 37 38 39] [0 1 2 3 4 5 6 7 8 9]
+===> Building model
+UNet 6
+===> Loading datasets
+Train data: /home/localadmin/segthor/data/train_resampled2_2_25
+Train ['Patient_11', 'Patient_12', 'Patient_13', 'Patient_14', 'Patient_15', 'Patient_16', 'Patient_17', 'Patient_18', 'Patient_19', 'Patient_20', 'Patient_21', 'Patient_22', 'Patient_23', 'Patient_24', 'Patient_25', 'Patient_26', 'Patient_27', 'Patient_28', 'Patient_29', 'Patient_30', 'Patient_31', 'Patient_32', 'Patient_33', 'Patient_34', 'Patient_35', 'Patient_36', 'Patient_37', 'Patient_38', 'Patient_39', 'Patient_40']
+Val ['Patient_01', 'Patient_02', 'Patient_03', 'Patient_04', 'Patient_05', 'Patient_06', 'Patient_07', 'Patient_08', 'Patient_09', 'Patient_10']
+['Patient_11', 'Patient_12', 'Patient_13', 'Patient_14', 'Patient_15', 'Patient_16', 'Patient_17', 'Patient_18', 'Patient_19', 'Patient_20', 'Patient_21', 'Patient_22', 'Patient_23', 'Patient_24', 'Patient_25', 'Patient_26', 'Patient_27', 'Patient_28', 'Patient_29', 'Patient_30', 'Patient_31', 'Patient_32', 'Patient_33', 'Patient_34', 'Patient_35', 'Patient_36', 'Patient_37', 'Patient_38', 'Patient_39', 'Patient_40']
+['Patient_01', 'Patient_02', 'Patient_03', 'Patient_04', 'Patient_05', 'Patient_06', 'Patient_07', 'Patient_08', 'Patient_09', 'Patient_10']
+===> Building model
+===> Training
+worker id 0 seed 1337
+worker id 1 seed 1338
+worker id 2 seed 1339
+worker id 3 seed 1340
+worker id 4 seed 1341
+worker id 5 seed 1342
+worker id 6 seed 1343
+worker id 7 seed 1344
+worker id 8 seed 1345
+worker id 9 seed 1346
+worker id 10 seed 1347
+worker id 11 seed 1348
+Epoch 0, train/ Dice [7.77673571e-05 1.63852735e-01 0.00000000e+00 1.35393638e-03]
+Epoch 0, val/ Dice [4.96956171e-06 1.56961621e-01 0.00000000e+00 2.82367343e-04]
+Epoch 0, val/ Hausdorff_ITK [6.00773810e+04 9.53344933e+01 9.80001269e+05 8.10656830e+01]
+model saved
+Epoch 0, time 1238.287451505661 
+
+worker id 0 seed 3238018133
+worker id 1 seed 3238018134
+worker id 2 seed 3238018135
+worker id 3 seed 3238018136
+worker id 4 seed 3238018137
+worker id 5 seed 3238018138
+worker id 6 seed 3238018139
+worker id 7 seed 3238018140
+worker id 8 seed 3238018141
+worker id 9 seed 3238018142
+worker id 10 seed 3238018143
+worker id 11 seed 3238018144
+Epoch 1, train/ Dice [1.57742353e-04 1.55825210e-01 1.22428356e-06 1.64354840e-03]
+Epoch 1, val/ Dice [5.53284003e-05 1.72731066e-01 5.57309820e-05 3.62012164e-04]
+Epoch 1, val/ Hausdorff_ITK [4.00642117e+04 9.51799884e+01 8.60007990e+05 7.90905263e+01]
+model saved
+Epoch 1, time 1213.0197863578796 
+
+worker id 0 seed 3238018133
+worker id 1 seed 3238018134
+worker id 2 seed 3238018135
+worker id 3 seed 3238018136
+worker id 4 seed 3238018137
+worker id 5 seed 3238018138
+worker id 6 seed 3238018139
+worker id 7 seed 3238018140
+worker id 8 seed 3238018141
+worker id 9 seed 3238018142
+worker id 10 seed 3238018143
+worker id 11 seed 3238018144
+Epoch 2, train/ Dice [0.00586544 0.41735673 0.00071288 0.07435921]
+Epoch 2, val/ Dice [0.00000000e+00 4.27939401e-01 8.16326530e-06 8.93118814e-02]
+Epoch 2, val/ Hausdorff_ITK [20060.56562142    63.926495   60063.53707804    75.06121033]
+model saved
+Epoch 2, time 1206.6965799331665 

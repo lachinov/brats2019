@@ -1,0 +1,1 @@
+python3.6 main.py --batchSize=6 --nEpochs=20 --splits=4 --threads=12 --train_path=/home/localadmin/segthor/data/train_resampled2_2_25_cropped --validation_path=/home/localadmin/segthor/data/train_resampled2_2_25_cropped --name=test --models_path=/home/localadmin/segthor/models
