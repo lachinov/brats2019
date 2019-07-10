@@ -52,9 +52,9 @@ def main():
 
 
     print("===> Building model")
-    layers = [2,2,2,2,2]
-    number_of_channels=[int(4*1*2**i) for i in range(1,6)]#[32,128,256,512,1024]
-    model = UNet(depth=len(layers), encoder_layers=layers, number_of_channels=number_of_channels, number_of_outputs=1)
+    layers = [1,1,1,1]
+    number_of_channels=[int(2*1*2**i) for i in range(1,1+len(layers))]#[32,128,256,512,1024]
+    model = UNet(depth=len(layers), encoder_layers=layers, number_of_channels=number_of_channels, number_of_outputs=4)
     model.apply(weight_init.weight_init)
     model = torch.nn.DataParallel(module=model, device_ids=[0])
 
@@ -106,7 +106,7 @@ def main():
     print('Train {}'.format(series_train))
     print('Val {}'.format(series_val))
 
-    train_set = dataloader.SimpleReader(path=opt.train_path,patch_size=(128, 160, 128), series=series_train, multiplier=8, patches_from_single_image=1)
+    train_set = dataloader.SimpleReader(path=opt.train_path,patch_size=(96, 128, 96), series=series_train, multiplier=8, patches_from_single_image=1)
     val_set = dataloader.FullReader(path=opt.train_path,series=series_val)
 
     training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads,
@@ -133,10 +133,10 @@ def main():
                                     "weight_decay":1e-6,
                                     #"nesterov":True,
                                     #"momentum":0.9
-                                    "amsgrad":True,
+                                    #"amsgrad":True,
                                     },
                   scheduler=torch.optim.lr_scheduler.MultiStepLR,
-                  scheduler_params={"milestones":[8000, 16000, 24000],
+                  scheduler_params={"milestones":[24000, 36000, 124000],
                                     "gamma":0.2,
                                     #"T_max":3000,
                                     #"eta_min":1e-3
@@ -146,10 +146,13 @@ def main():
                   evaluation_data_loader=evaluation_data_loader,
                   split_into_tiles=False,
                   pretrained_weights=None,
-                  train_metrics=[ metrics.Dice(name='Dice', input_index=0, target_index=0, classes=4),
+                  train_metrics=[ metrics.Dice(name='Dice', input_index=0, target_index=0, classes=4),\
+                                  metrics.DiceWT(name='DiceWT', input_index=0, target_index=0)
                                  ],
                   val_metrics=[metrics.Dice(name='Dice', input_index=0, target_index=0,classes=4),
-                               metrics.Hausdorff_ITK(name='Hausdorff_ITK', input_index=0, target_index=0,classes=4)
+                               metrics.DiceWT(name='DiceWT', input_index=0, target_index=0),
+                               metrics.Hausdorff_ITK(name='Hausdorff_ITK', input_index=0, target_index=0,classes=4),
+                               metrics.Hausdorff_ITKWT(name='Hausdorff_ITKWT', input_index=0, target_index=0)
                                ],
                   track_metric='Dice',
                   epoches=opt.nEpochs,

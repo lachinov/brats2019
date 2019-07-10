@@ -106,26 +106,51 @@ class Dice(Metrics):
         self.classes = classes
 
     def update(self, ground, predict):
-        pred = predict[self.input_index].detach()#.cpu().detach().numpy()
-        gr = ground[self.target_index].detach()#.cpu().detach().numpy()
+        pred = predict[self.input_index].detach()
+        gr = ground[self.target_index].detach()
 
-        #print(gr.shape, pred.shape)
         assert (gr.shape == pred.shape)
 
-        pred = (pred > 0.5).long()[:,0]#torch.argmax(pred, dim=1).long()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long()#torch.argmax(pred, dim=1).long()
-        gr =(gr > 0.5).long()[:,0] #torch.argmax(gr, dim=1).long()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long()#torch.argmax(gr, dim=1).long()
+        pred = torch.argmax(pred, dim=1).long().view(pred.size(0),-1)
+        gr = torch.argmax(gr, dim=1).long().view(gr.size(0),-1)
 
         result = np.zeros(shape = (pred.shape[0],self.classes-1))
 
         for i in range(1, self.classes):
             p = (pred == i).float()
             g = (gr == i).float()
-            #print(p.max(), g.max())
-            r = 2 * (p * g).sum(dim=(1,2,3))/((p+g).sum(dim=(1,2,3))+1e-6)
-            #print(r.shape)
-            result[:,i-1] = r.cpu().numpy()
+
+            numerator = (p * g).sum(dim=1).cpu().numpy()
+            denominator = (p + g).sum(dim=1).cpu().numpy()
+
+            r = 2 * numerator / denominator
+            r[np.isnan(r)] = 1
+
+            result[:,i-1] = r
 
         self.accumulator = self.accumulator + result.mean(axis=0)
+
+        self.samples += 1
+
+class DiceWT(Metrics):
+    def __init__(self, name='Dice_WT', input_index=0,target_index=0):
+        super(DiceWT, self).__init__(name)
+        self.input_index=input_index
+        self.target_index=target_index
+
+    def update(self, ground, predict):
+        pred = predict[self.input_index].detach()#.cpu().detach().numpy()
+        gr = ground[self.target_index].detach()#.cpu().detach().numpy()
+
+        #print(gr.shape, pred.shape)
+        assert (gr.shape == pred.shape)
+
+        pred = (torch.argmax(pred, dim=1)>0).float()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long()#torch.argmax(pred, dim=1).long()
+        gr = (torch.argmax(gr, dim=1)>0).float()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long()#torch.argmax(gr, dim=1).long()
+
+        r = 2 * (pred * gr).sum(dim=(1,2,3))/((pred+gr).sum(dim=(1,2,3))+1e-6)
+
+        self.accumulator = self.accumulator + r.mean(dim=0).cpu().numpy()
 
         self.samples += 1
 
@@ -177,8 +202,8 @@ class Hausdorff_ITK(Metrics):
         #pred = torch.argmax(pred, dim=1).long().cpu().numpy()
         #gr = torch.argmax(gr, dim=1).long().cpu().numpy()
 
-        pred = (pred > 0.5).long().cpu().numpy()[:,0]#torch.argmax(pred, dim=1).long().cpu().numpy()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(pred, dim=1).long()
-        gr = (gr > 0.5).long().cpu().numpy()[:,0]#torch.argmax(gr, dim=1).long().cpu().numpy()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(gr, dim=1).long()
+        pred = torch.argmax(pred, dim=1).long().cpu().numpy()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(pred, dim=1).long()
+        gr = torch.argmax(gr, dim=1).long().cpu().numpy()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(gr, dim=1).long()
 
         result = np.zeros(shape = (pred.shape[0],self.classes-1))
 
@@ -197,6 +222,46 @@ class Hausdorff_ITK(Metrics):
                     pass
 
                 result[n,i-1] = r
+
+        self.accumulator = self.accumulator + result.mean(axis=0)
+
+        self.samples += 1
+
+class Hausdorff_ITKWT(Metrics):
+    def __init__(self, name='Hausdorff_ITKWT', input_index=0,target_index=0):
+        super(Hausdorff_ITKWT, self).__init__(name)
+        self.input_index=input_index
+        self.target_index=target_index
+        self.hausdorff_distance_filter = sitk.HausdorffDistanceImageFilter()
+
+    def update(self, ground, predict):
+        pred = predict[self.input_index].detach()#.cpu().detach().numpy()
+        gr = ground[self.target_index].detach()#.cpu().detach().numpy()
+
+        assert (gr.shape == pred.shape)
+
+        #pred = torch.argmax(pred, dim=1).long().cpu().numpy()
+        #gr = torch.argmax(gr, dim=1).long().cpu().numpy()
+
+        pred = (torch.argmax(pred, dim=1)>0).long().cpu().numpy()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(pred, dim=1).long()
+        gr = (torch.argmax(gr, dim=1)>0).long().cpu().numpy()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(gr, dim=1).long()
+
+        result = np.zeros(shape = (pred.shape[0]))
+
+        for n in range(pred.shape[0]):
+            p = pred[n].astype(np.uint8)
+            g = gr[n].astype(np.uint8)
+
+
+            r = 1e+6
+            try:
+                self.hausdorff_distance_filter.Execute(sitk.GetImageFromArray(g), sitk.GetImageFromArray(p))
+                r = self.hausdorff_distance_filter.GetHausdorffDistance()
+            except RuntimeError:
+                print("Hausdorff_ITK:RuntimeError")
+                pass
+
+            result[n] = r
 
         self.accumulator = self.accumulator + result.mean(axis=0)
 

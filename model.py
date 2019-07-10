@@ -118,8 +118,8 @@ class Residual(nn.Module):
         #self.pad2 = Pad(size=1)
         self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels)
+        self.norm1 = nn.InstanceNorm3d(num_features=out_channels,affine=True)
+        self.norm2 = nn.InstanceNorm3d(num_features=out_channels,affine=True)
         #self.se = SEBlock(channel=in_channels, reduction=4)
 
     def forward(self, x):
@@ -156,8 +156,8 @@ class BacisBlock(nn.Module):
         self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)\
 
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm1 = nn.InstanceNorm3d(num_features=out_channels,affine=True)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm2 = nn.InstanceNorm3d(num_features=out_channels,affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
 
     def forward(self, x):
 
@@ -336,7 +336,7 @@ class Attention(nn.Module):
         return (attention).view(N, C, D, H, W)
 
 class UNet(nn.Module):
-    def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=BacisBlock):
+    def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=Residual):
         super(UNet, self).__init__()
         print('UNet {}'.format(number_of_channels))
 
@@ -364,7 +364,7 @@ class UNet(nn.Module):
         #self.padding1 = Pad(size=1)
         self.conv_input = nn.Conv3d(in_channels=4, out_channels=self.number_of_channels[0], kernel_size=(3,3,3), stride=1, padding=(1,1,1),
                                     bias=False)
-        self.norm_input = nn.InstanceNorm3d(num_features=self.number_of_channels[0])
+        self.norm_input = nn.InstanceNorm3d(num_features=self.number_of_channels[0],affine=True)
 
         conv_first_list = []
         for i in range(self.encoder_layers[0]):
@@ -482,7 +482,7 @@ class UNet(nn.Module):
                 *conv_list
             )
 
-            conv1x1 = nn.Conv3d(in_channels=2*number_of_channels[i], out_channels=number_of_channels[i], kernel_size=1, bias=False)
+            conv1x1 = nn.Conv3d(in_channels=2*number_of_channels[i], out_channels=number_of_channels[i], kernel_size=3, padding=1, bias=False)
             self.decoder_convs.append(conv)
             self.decoder_convs1x1.append(conv1x1)
 
@@ -541,7 +541,7 @@ class UNet(nn.Module):
 
         out_logits = self.conv_output(conv)
 
-        out_logits = self.sigmoid(out_logits)
+        out_logits = self.softmax(out_logits)
         #out_logits_ds = self.sigmoid(out_ds)
 
         #print('torch mean ', mean)

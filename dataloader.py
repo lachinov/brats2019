@@ -105,8 +105,8 @@ class SimpleReader(data.Dataset):
             borders_low = np.array(self.patch_size) / 2.0 + 1
             borders_high = borders - np.array(self.patch_size) / 2.0 - 1
 
-            bbox[0] = borders_low#np.maximum(bbox[0]-100, borders_low)
-            bbox[1] = borders_high#np.minimum(bbox[1]+100, borders_high)
+            bbox[0] = np.maximum(bbox[0]-50, borders_low)
+            bbox[1] = np.minimum(bbox[1]+50, borders_high)
 
             self.labels_location.append(bbox)
 
@@ -131,7 +131,8 @@ class SimpleReader(data.Dataset):
 
             #std1 = self.image.std(axis=(1,2,3))
 
-            self.image = self.image / std.reshape((self.image.shape[0],1,1,1))#self.image.std(axis=(1,2,3), keepdims=True)#(self.image - self.image.mean(axis=(1,2,3), keepdims=True)) / self.image.std(axis=(1,2,3), keepdims=True)
+            self.image = (self.image - mean.reshape((self.image.shape[0],1,1,1))) / std.reshape((self.image.shape[0],1,1,1))#self.image.std(axis=(1,2,3), keepdims=True)#(self.image - self.image.mean(axis=(1,2,3), keepdims=True)) / self.image.std(axis=(1,2,3), keepdims=True)
+            self.image[~mask] = 0
 
         self.patches_from_current_image += 1
 
@@ -162,14 +163,15 @@ class SimpleReader(data.Dataset):
         x_scale = 0.7 + random.random()*0.6
         y_scale = 0.7 + random.random()*0.6
 
-        data_out = affine_transform(data_out,(1,x_scale,y_scale,1),order=1)
+        label_out = np.eye(4)[label_out.astype(np.int32)].transpose((3,0,1,2))
+
+        data_out = affine_transform(data_out,(1, x_scale, y_scale, 1),order=1)
         #data_out = np.stack([elastic_transform(data_out[i], alpha, sigma, 1, np.random.RandomState(seed)) for i in range(data_out.shape[0])],axis=0)
 
-        label_out = affine_transform(label_out, (x_scale, y_scale, 1), order=0)
+        label_out = affine_transform(label_out, (1, x_scale, y_scale, 1), order=1)
         #label_out = elastic_transform(label_out, alpha, sigma, 0, np.random.RandomState(seed))
 
-        #label_out = np.eye(2)[(label_out>0).astype(np.int32) ].transpose((3,0,1,2))
-        label_out = (label_out > 0)[None]
+        #label_out = (label_out > 0)[None]
 
         if random.random() > 0.5:
             data_out = data_out[:,::-1,:,:].copy()
@@ -254,12 +256,13 @@ class FullReader(data.Dataset):
 
         std = np.sqrt(mean2 - mean * mean)
 
-        new_image = new_image / std.reshape((new_image.shape[0], 1, 1, 1))
+        new_image = (new_image - mean.reshape((new_image.shape[0],1,1,1)))/ std.reshape((new_image.shape[0], 1, 1, 1))
+        new_image[~mask] = 0
         #new_image = new_image / new_image.std(axis=(1, 2, 3),keepdims=True) #(new_image - new_image.mean(axis=(1, 2, 3), keepdims=True)) / new_image.std(axis=(1, 2, 3),keepdims=True)
 
-        #new_label_out = (np.eye(2)[(new_label>0).astype(np.int32)]).transpose((3,0,1,2))
+        new_label_out = (np.eye(4)[new_label.astype(np.int32)]).transpose((3,0,1,2))
 
-        new_label_out = (new_label > 0)[None]
+        #new_label_out = (new_label > 0)[None]
 
         labels_torch = torch.from_numpy(new_label_out.copy()).float()
 
