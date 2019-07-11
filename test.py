@@ -82,7 +82,19 @@ if __name__ == '__main__':
         new_data_crop = np.pad(image, pad_width=((0,0),)+tuple([(pad_left[i], pad_right[i]) for i in range(3)]),
                            mode='reflect')
 
-        new_data_crop = new_data_crop / new_data_crop.std(axis=(1, 2, 3),keepdims=True)
+
+
+        mask = new_data_crop > 0
+        num_voxels = np.sum(mask, axis=(1, 2, 3))
+
+        mean = np.sum(new_data_crop, axis=(1, 2, 3)) / num_voxels
+        mean2 = np.sum(new_data_crop ** 2, axis=(1, 2, 3)) / num_voxels
+
+        std = np.sqrt(mean2 - mean * mean)
+
+        new_data_crop = (new_data_crop- mean.reshape((new_data_crop.shape[0], 1, 1, 1))) / std.reshape(
+            (new_data_crop.shape[0], 1, 1, 1))
+        new_data_crop[~mask] = 0
 
         #new_data_crop = new_data_crop.transpose((2,1,0))
 

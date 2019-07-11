@@ -212,6 +212,9 @@ class Hausdorff_ITK(Metrics):
                 p = (pred[n] == i).astype(np.uint8)
                 g = (gr[n] == i).astype(np.uint8)
 
+                if p.sum() == 0 and g.sum() == 0:
+                    r = 0
+                    continue
 
                 r = 1e+6
                 try:

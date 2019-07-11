@@ -52,8 +52,8 @@ def main():
 
 
     print("===> Building model")
-    layers = [1,1,1,1]
-    number_of_channels=[int(2*1*2**i) for i in range(1,1+len(layers))]#[32,128,256,512,1024]
+    layers = [1,1,1,1,1]
+    number_of_channels=[int(2*2*2**i) for i in range(1,1+len(layers))]#[32,128,256,512,1024]
     model = UNet(depth=len(layers), encoder_layers=layers, number_of_channels=number_of_channels, number_of_outputs=4)
     model.apply(weight_init.weight_init)
     model = torch.nn.DataParallel(module=model, device_ids=[0])
@@ -122,6 +122,7 @@ def main():
                                     batch_sampler=batch_sampler)
 
     criterion = [loss.Dice_loss_joint(index=0,priority=1).cuda(),
+                 loss.CE_Loss(index=0).cuda(),
                     ]
     print("===> Building model")
 

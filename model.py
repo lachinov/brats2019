@@ -405,7 +405,7 @@ class UNet(nn.Module):
         #)
 
 
-        self.conv_output = nn.Conv3d(in_channels=self.number_of_channels[0],out_channels=self.number_of_outputs,kernel_size=1, stride=1,padding=0,bias=True,groups=self.number_of_outputs)
+        self.conv_output = nn.Conv3d(in_channels=self.number_of_channels[0],out_channels=self.number_of_outputs,kernel_size=3, stride=1,padding=1,bias=True,groups=1)
 
         #self.mean = Mean()
         #self.conv_output_distance = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=1, stride=1,padding=0,bias=True,groups=1)
