@@ -53,7 +53,7 @@ if __name__ == '__main__':
     output_path = '/home/dlachinov/brats2019/data/out'
 
     trainer = train.Trainer(name=opt.name, models_root=opt.models_path, rewrite=False, connect_tb=False)
-    trainer.load_best()#_load('_epoch_78')
+    trainer.load_latest()#_load('_epoch_78')
     trainer.model = trainer.model.module.cpu()
     # trainer.model.eval()
     trainer.state.cuda = False

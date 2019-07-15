@@ -184,7 +184,7 @@ class ResNextBottleneck(nn.Module):
 
         self.downsample = downsample
 
-        conv_groups = out_channels // (width*compression)
+        conv_groups = 4#out_channels // (width*compression)
 
         self.conv_pre = nn.Conv3d(in_channels=in_channels, out_channels=out_channels//compression, kernel_size=1, stride=1,
                                padding=0, bias=False, groups=1)
@@ -202,7 +202,7 @@ class ResNextBottleneck(nn.Module):
         self.norm3 = nn.InstanceNorm3d(num_features=out_channels)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
         self.conv_post = nn.Conv3d(in_channels=out_channels // compression, out_channels=out_channels,
                                kernel_size=1, padding=0, bias=False, groups=1)
-        #self.se = SEBlock(channel=out_channels, reduction=8)
+        self.se = SEBlock(channel=out_channels, reduction=4)
 
     def forward(self, x):
 
@@ -222,7 +222,7 @@ class ResNextBottleneck(nn.Module):
         out = self.conv_post(out)
         out = self.norm3(out)
 
-        out = x + out
+        out = x + self.se(out)
         out = self.relu3(out)
 
         return out
@@ -336,7 +336,7 @@ class Attention(nn.Module):
         return (attention).view(N, C, D, H, W)
 
 class UNet(nn.Module):
-    def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=Residual):
+    def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=ResNextBottleneck):
         super(UNet, self).__init__()
         print('UNet {}'.format(number_of_channels))
 
@@ -363,7 +363,7 @@ class UNet(nn.Module):
 
         #self.padding1 = Pad(size=1)
         self.conv_input = nn.Conv3d(in_channels=4, out_channels=self.number_of_channels[0], kernel_size=(3,3,3), stride=1, padding=(1,1,1),
-                                    bias=False)
+                                    bias=False, groups=4)
         self.norm_input = nn.InstanceNorm3d(num_features=self.number_of_channels[0],affine=True)
 
         conv_first_list = []
@@ -482,7 +482,7 @@ class UNet(nn.Module):
                 *conv_list
             )
 
-            conv1x1 = nn.Conv3d(in_channels=2*number_of_channels[i], out_channels=number_of_channels[i], kernel_size=3, padding=1, bias=False)
+            conv1x1 = nn.Conv3d(in_channels=2*number_of_channels[i], out_channels=number_of_channels[i], kernel_size=1, padding=0, bias=False)
             self.decoder_convs.append(conv)
             self.decoder_convs1x1.append(conv1x1)
 
