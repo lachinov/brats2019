@@ -25,6 +25,7 @@ parser.add_argument("--train_path", default="", type=str, help="path to train da
 parser.add_argument("--name", default="test", type=str, help="experiment name")
 parser.add_argument("--models_path", default="/models", type=str, help="path to models folder")
 parser.add_argument("--splits", default=1, type=int, help="number of splits in CV")
+parser.add_argument("--gpus", default=1, type=int, help="number of gpus to use")
 
 
 def worker_init_fn(worker_id):
@@ -56,7 +57,7 @@ def main():
     number_of_channels=[int(8*2**i) for i in range(1,1+len(layers))]#[32,128,256,512,1024]
     model = UNet(depth=len(layers), encoder_layers=layers, number_of_channels=number_of_channels, number_of_outputs=4)
     model.apply(weight_init.weight_init)
-    model = torch.nn.DataParallel(module=model, device_ids=[0])
+    model = torch.nn.DataParallel(module=model, device_ids=range(opt.gpus))
 
     trainer = train.Trainer(model=model, name=opt.name, models_root=opt.models_path, rewrite=True)
     trainer.cuda()
