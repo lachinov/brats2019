@@ -64,17 +64,20 @@ def normalize(image, mask):
 
 
 class SimpleReader(data.Dataset):
-    def __init__(self, path, patch_size, series = None, multiplier=1, patches_from_single_image=1):
+    def __init__(self, paths, patch_size, series = None, images_in_epoch=4000, patches_from_single_image=1):
         super(SimpleReader, self).__init__()
-        self.path = path
+        self.paths = paths
         self.patch_size = patch_size
-        self.multiplier = multiplier
+        self.images_in_epoch = images_in_epoch
         self.patches_from_single_image = patches_from_single_image
 
-        if series is None:
-            self.series = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-        else:
-            self.series = series
+        self.series = []
+
+        for p, s in zip(paths,series):
+            if s is None:
+                self.series += [(p, f) for f in os.listdir(p) if os.path.isdir(os.path.join(p, f))]
+            else:
+                self.series += [(p,f) for f in s]
 
         self.series.sort()
 
@@ -93,9 +96,9 @@ class SimpleReader(data.Dataset):
 
     def __cache(self):
         # cache locations of the labels (bounding boxes) inside the images
-        for f in self.series:
+        for p, f in self.series:
 
-            image, label, affine = loader_helper.read_multimodal(self.path, f, True)
+            image, label, affine = loader_helper.read_multimodal(p, f, True)
 
 
             bbox = loader_helper.bbox3(label>0)
@@ -116,7 +119,8 @@ class SimpleReader(data.Dataset):
             self.patches_from_current_image = 0
             self.current_image_index = index
 
-            self.image, self.label, affine = loader_helper.read_multimodal(self.path, self.series[index], True)
+            p, f = self.series[index]
+            self.image, self.label, affine = loader_helper.read_multimodal(p, f, True)
 
 
             mask = self.image > 0
@@ -124,15 +128,15 @@ class SimpleReader(data.Dataset):
 
             #print(self.image[mask].shape)
 
-            mean = np.sum(self.image,axis=(1,2,3)) / num_voxels
-            mean2 = np.sum(self.image ** 2,axis=(1,2,3)) / num_voxels
+            mean = np.sum(self.image / num_voxels[:,None,None,None], axis=(1,2,3))
+            mean2 = np.sum(np.square(self.image) / num_voxels[:,None,None,None], axis=(1,2,3))
 
             std = np.sqrt(mean2 - mean * mean)
 
             #std1 = self.image.std(axis=(1,2,3))
 
             self.image = (self.image - mean.reshape((self.image.shape[0],1,1,1))) / std.reshape((self.image.shape[0],1,1,1))#self.image.std(axis=(1,2,3), keepdims=True)#(self.image - self.image.mean(axis=(1,2,3), keepdims=True)) / self.image.std(axis=(1,2,3), keepdims=True)
-            self.image[~mask] = 0
+            #self.image[~mask] = -10
 
         self.patches_from_current_image += 1
 
@@ -162,13 +166,14 @@ class SimpleReader(data.Dataset):
 
         x_scale = 0.7 + random.random()*0.6
         y_scale = 0.7 + random.random()*0.6
+        z_scale = 0.7 + random.random()*0.6
 
         label_out = np.eye(4)[label_out.astype(np.int32)].transpose((3,0,1,2))
 
-        data_out = affine_transform(data_out,(1, x_scale, y_scale, 1),order=1)
+        data_out = affine_transform(data_out,(1, x_scale, y_scale, z_scale),order=1, mode='reflect')
         #data_out = np.stack([elastic_transform(data_out[i], alpha, sigma, 1, np.random.RandomState(seed)) for i in range(data_out.shape[0])],axis=0)
 
-        label_out = affine_transform(label_out, (1, x_scale, y_scale, 1), order=1)
+        label_out = affine_transform(label_out, (1, x_scale, y_scale, z_scale), order=1, mode='reflect')
         #label_out = elastic_transform(label_out, alpha, sigma, 0, np.random.RandomState(seed))
 
         #label_out = (label_out > 0)[None]
@@ -197,6 +202,14 @@ class SimpleReader(data.Dataset):
 
         data_out = data_out + 1.2*(random.random() - 0.5)
 
+
+
+        wt = np.sum(label_out[1:], axis=0, keepdims=True)
+        tc = np.sum(label_out[[1,3]], axis=0, keepdims=True)
+        et = label_out[3,None]
+
+        label_out = np.concatenate([wt,tc,et],axis=0)
+
         labels_torch = torch.from_numpy(label_out.copy()).float()
 
 
@@ -207,7 +220,7 @@ class SimpleReader(data.Dataset):
 
 
     def __len__(self):
-        return int(self.multiplier*self.real_length)
+        return int(self.images_in_epoch)
 
 
 class FullReader(data.Dataset):
@@ -251,18 +264,25 @@ class FullReader(data.Dataset):
         mask = new_image > 0
         num_voxels = np.sum(mask, axis=(1, 2, 3))
 
-        mean = np.sum(new_image, axis=(1, 2, 3)) / num_voxels
-        mean2 = np.sum(new_image ** 2, axis=(1, 2, 3)) / num_voxels
+        mean = np.sum(new_image / num_voxels[:,None,None,None], axis=(1, 2, 3))
+        mean2 = np.sum(np.square(new_image)/ num_voxels[:,None,None,None], axis=(1, 2, 3))
 
         std = np.sqrt(mean2 - mean * mean)
 
         new_image = (new_image - mean.reshape((new_image.shape[0],1,1,1)))/ std.reshape((new_image.shape[0], 1, 1, 1))
-        new_image[~mask] = 0
+        #new_image[~mask] = -10
         #new_image = new_image / new_image.std(axis=(1, 2, 3),keepdims=True) #(new_image - new_image.mean(axis=(1, 2, 3), keepdims=True)) / new_image.std(axis=(1, 2, 3),keepdims=True)
 
         new_label_out = (np.eye(4)[new_label.astype(np.int32)]).transpose((3,0,1,2))
 
         #new_label_out = (new_label > 0)[None]
+
+
+        wt = np.sum(new_label_out [1:], axis=0, keepdims=True)
+        tc = np.sum(new_label_out [[1,3]], axis=0, keepdims=True)
+        et = new_label_out[3,None]
+
+        new_label_out  = np.concatenate([wt,tc,et],axis=0)
 
         labels_torch = torch.from_numpy(new_label_out.copy()).float()
 

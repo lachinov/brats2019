@@ -15,6 +15,15 @@ class LCNorm(nn.Module):
         x = (x - x_mean) / (x_std)
         return x
 
+class Trilinear(nn.Module):
+    def __init__(self, scale):
+        super(Trilinear, self).__init__()
+        self.scale = scale
+
+    def forward(self, x):
+        out = F.interpolate(x,scale_factor=self.scale,mode='trilinear')
+        return out
+
 
 #class Pad(nn.Module):
 #    def __init__(self, size = 0):
@@ -118,8 +127,8 @@ class Residual(nn.Module):
         #self.pad2 = Pad(size=1)
         self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels,affine=True)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels,affine=True)
+        self.norm1 = nn.GroupNorm(num_groups=8, num_channels=out_channels)#nn.InstanceNorm3d(num_features=out_channels,affine=True)
+        self.norm2 = nn.GroupNorm(num_groups=8, num_channels=out_channels)#nn.InstanceNorm3d(num_features=out_channels,affine=True)
         #self.se = SEBlock(channel=in_channels, reduction=4)
 
     def forward(self, x):
@@ -143,9 +152,9 @@ class Residual(nn.Module):
         return out
 
 
-class BacisBlock(nn.Module):
+class BasicBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, downsample = None):
-        super(BacisBlock, self).__init__()
+        super(BasicBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
 
@@ -156,8 +165,8 @@ class BacisBlock(nn.Module):
         self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)\
 
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels,affine=True)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels,affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm1 = nn.BatchNorm3d(num_features=out_channels,affine=True,track_running_stats=True,momentum=0.5)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm2 = nn.BatchNorm3d(num_features=out_channels,affine=True,track_running_stats=True,momentum=0.5)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
 
     def forward(self, x):
 
@@ -197,12 +206,12 @@ class ResNextBottleneck(nn.Module):
         self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
         self.relu3 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels//compression)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels//compression)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm3 = nn.InstanceNorm3d(num_features=out_channels)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm1 = nn.InstanceNorm3d(num_features=out_channels//compression, affine=True)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm2 = nn.InstanceNorm3d(num_features=out_channels//compression, affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm3 = nn.InstanceNorm3d(num_features=out_channels, affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
         self.conv_post = nn.Conv3d(in_channels=out_channels // compression, out_channels=out_channels,
                                kernel_size=1, padding=0, bias=False, groups=1)
-        self.se = SEBlock(channel=out_channels, reduction=4)
+        #self.se = SEBlock(channel=out_channels, reduction=4)
 
     def forward(self, x):
 
@@ -222,7 +231,7 @@ class ResNextBottleneck(nn.Module):
         out = self.conv_post(out)
         out = self.norm3(out)
 
-        out = x + self.se(out)
+        out = x + out
         out = self.relu3(out)
 
         return out
@@ -336,11 +345,12 @@ class Attention(nn.Module):
         return (attention).view(N, C, D, H, W)
 
 class UNet(nn.Module):
-    def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=ResNextBottleneck):
+    def __init__(self, depth, encoder_layers, decoder_layers, number_of_channels, number_of_outputs, block=Residual):
         super(UNet, self).__init__()
         print('UNet {}'.format(number_of_channels))
 
         self.encoder_layers = encoder_layers
+        self.decoder_layers = decoder_layers
 
         self.number_of_channels = number_of_channels
         self.number_of_outputs = number_of_outputs
@@ -363,8 +373,8 @@ class UNet(nn.Module):
 
         #self.padding1 = Pad(size=1)
         self.conv_input = nn.Conv3d(in_channels=4, out_channels=self.number_of_channels[0], kernel_size=(3,3,3), stride=1, padding=(1,1,1),
-                                    bias=False, groups=4)
-        self.norm_input = nn.InstanceNorm3d(num_features=self.number_of_channels[0],affine=True)
+                                    bias=False)
+        self.norm_input = nn.GroupNorm(num_groups=8, num_channels=self.number_of_channels[0])#nn.BatchNorm3d(num_features=self.number_of_channels[0],affine=True,track_running_stats=True,momentum=0.5)
 
         conv_first_list = []
         for i in range(self.encoder_layers[0]):
@@ -412,6 +422,7 @@ class UNet(nn.Module):
         #self.conv_output_reg = nn.Conv3d(in_channels=self.number_of_channels//4,out_channels=1,kernel_size=3, stride=1,padding=0,bias=True)
         #self.conv_output_attention = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=3, stride=1,padding=1,bias=True)
         self.softmax = nn.Softmax(dim=1)
+        self.sigmoid = nn.Sigmoid()
         #self.softmax_ds = nn.Softmax(dim=1)
         self.construct_dencoder_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_encoder_convs(depth=depth,number_of_channels=number_of_channels)
@@ -450,7 +461,9 @@ class UNet(nn.Module):
         if stride != 1:
             downsample = nn.Sequential(
                 #DownsamplingPixelShuffle(input_channels=in_channels, output_channels=channels,ratio=stride),
-                nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=2, stride=stride, bias=False)
+                #nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=2, stride=stride, bias=False)
+                nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=1, stride=1, bias=False),
+                Trilinear(scale=0.5),
             )
 
         layers = []
@@ -475,7 +488,7 @@ class UNet(nn.Module):
 
 
             conv_list = []
-            for j in range(self.encoder_layers[i]):
+            for j in range(self.decoder_layers[i]):
                 conv_list.append(block(in_channels=number_of_channels[i], out_channels=number_of_channels[i], stride=1))
 
             conv = nn.Sequential(
@@ -488,7 +501,11 @@ class UNet(nn.Module):
 
     def construct_upsampling_convs(self, depth, number_of_channels):
         for i in range(depth-1):
-            conv = nn.ConvTranspose3d(in_channels=number_of_channels[i+1],out_channels=number_of_channels[i], kernel_size=2,stride=2,padding=0,bias=False)
+            #conv = nn.ConvTranspose3d(in_channels=number_of_channels[i+1],out_channels=number_of_channels[i], kernel_size=2,stride=2,padding=0,bias=False)
+            conv = nn.Sequential(
+                Trilinear(scale=2),
+                nn.Conv3d(in_channels=number_of_channels[i+1], out_channels=number_of_channels[i], kernel_size=1, stride=1, bias=False)
+            )
 
             #conv = UpsamplingPixelShuffle(input_channels=number_of_channels[i+1], output_channels=number_of_channels[i])
 
@@ -541,8 +558,8 @@ class UNet(nn.Module):
 
         out_logits = self.conv_output(conv)
 
-        out_logits = self.softmax(out_logits)
-        #out_logits_ds = self.sigmoid(out_ds)
+        #out_logits = self.softmax(out_logits)
+        out_logits = self.sigmoid(out_logits)
 
         #print('torch mean ', mean)
 
@@ -654,6 +671,6 @@ class UNet_hardcoded(nn.Module):
         cat1 = torch.cat([lv0,up1,up2,up3], dim=1)
 
         out = self.conv_output(cat1)
-        out = self.softmax(out)
+        out = self.self.softmax(out)
 
         return [out]

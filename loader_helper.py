@@ -20,7 +20,7 @@ def read_multimodal(data_path, series, read_annotation=True):
 
     affine = read_nii_header(os.path.join(data_path, series, series + suffixes[0])).affine
     files = [read_nii(os.path.join(data_path, series, series + s)) for s in suffixes]
-    data = np.stack(files, axis=0)
+    data = np.stack(files, axis=0).astype(np.float32)
     annotation = None
     if read_annotation:
         annotation = read_nii(os.path.join(data_path, series, series + '_seg.nii.gz'))
@@ -124,3 +124,10 @@ def bbox3(img):
 
         return np.array([[rmin, cmin, smin], [rmax, cmax, smax]])
     return np.array([[-1,-1,-1],[0,0,0]])
+
+
+def labels_to_regions(one_hot_labels):
+    return None
+
+def regions_to_labels(one_hot_regions):
+    return None

@@ -57,15 +57,14 @@ class CE_Loss(nn.Module):
     def forward(self, x, y):
         assert (x[self.index].shape == y[self.index].shape)
 
-        loss = y[self.index]*torch.log(x[self.index]+1e-6)*\
-               torch.Tensor([0.005, 1.,1.,1.]).view(1,4,1,1,1).cuda()
+        loss = y[self.index]*torch.log(x[self.index]+1e-6)
 
         return -torch.mean(loss)
 
 class BCE_Loss(nn.Module):
-    def __init__(self, label_index = 0, bg_weight=1):
+    def __init__(self, index = 0, bg_weight=1):
         super(BCE_Loss, self).__init__()
-        self.label_index = label_index
+        self.label_index = index
         self.bg_weight=bg_weight
 
     def forward(self, x, y):

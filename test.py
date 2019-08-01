@@ -45,32 +45,41 @@ series_val = ['BraTS19_2013_0_1',
               'BraTS19_CBICA_BBG_1',
               'BraTS19_TMC_15477_1']
 
+def get_bbox(data):
+    bboxes = np.stack([loader_helper.bbox3(d) for d in data],axis=0)
+    return np.stack([np.min(bboxes[:,0],axis=0),np.max(bboxes[:,1],axis=0)],axis=0)
+
 if __name__ == '__main__':
     opt = parser.parse_args()
     print(torch.__version__)
     print(opt)
-    path = '/home/dlachinov/brats2019/data/2019_cropped'
-    output_path = '/home/dlachinov/brats2019/data/out'
+    path = '/home/dlachinov/brats2019/data/MICCAI_BraTS_2019_Data_Validation'#'/home/dlachinov/brats2019/data/2019_cropped'
+    output_path = '/home/dlachinov/brats2019/data/out_val'#'/home/dlachinov/brats2019/data/out'
 
     trainer = train.Trainer(name=opt.name, models_root=opt.models_path, rewrite=False, connect_tb=False)
-    trainer.load_latest()#_load('_epoch_78')
-    trainer.model = trainer.model.module.cpu()
+    trainer._load('_epoch_17')
+    #trainer.model = trainer.model.module.cpu()
     # trainer.model.eval()
-    trainer.state.cuda = False
+    trainer.state.cuda = True
 
     series = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
     series.sort()
 
     print(series)
 
-    for f in series_val:
+    for f in series:
 
-        image, label, affine = loader_helper.read_multimodal(path, f, True)
+        image, label, affine = loader_helper.read_multimodal(path, f, False)
+
+        bbox = get_bbox(image)
+
+
+        image_crop = image[:,bbox[0,0]:bbox[1,0],bbox[0,1]:bbox[1,1],bbox[0,2]:bbox[1,2]]
 
 
         #data_crop = median_filter(data_crop, 3)
 #=========================================
-        old_shape_crop = image.shape[1:]
+        old_shape_crop = image_crop.shape[1:]
         new_shape_crop = tuple([loader_helper.closest_to_k(i, 16) for i in old_shape_crop])
         diff = np.array(new_shape_crop) - np.array(old_shape_crop)
         pad_left = diff // 2
@@ -79,22 +88,24 @@ if __name__ == '__main__':
         #new_data_crop = np.full(shape=new_shape_crop, fill_value=-1000., dtype=np.float32)
         #new_data_crop[:old_shape_crop[0], :old_shape_crop[1], :old_shape_crop[2]] = data_crop
 
-        new_data_crop = np.pad(image, pad_width=((0,0),)+tuple([(pad_left[i], pad_right[i]) for i in range(3)]),
-                           mode='reflect')
+        new_data_crop = np.pad(image_crop, pad_width=((0,0),)+tuple([(pad_left[i], pad_right[i]) for i in range(3)]),
+                           mode='constant', constant_values=0)
 
 
 
         mask = new_data_crop > 0
         num_voxels = np.sum(mask, axis=(1, 2, 3))
 
-        mean = np.sum(new_data_crop, axis=(1, 2, 3)) / num_voxels
-        mean2 = np.sum(new_data_crop ** 2, axis=(1, 2, 3)) / num_voxels
+        mean = np.sum(new_data_crop / num_voxels[:,None,None,None], axis=(1, 2, 3))
+        mean2 = np.sum(np.square(new_data_crop)/ num_voxels[:,None,None,None], axis=(1, 2, 3))
+
+        #print(np.any(np.square(new_data_crop) < 0))
 
         std = np.sqrt(mean2 - mean * mean)
 
         new_data_crop = (new_data_crop- mean.reshape((new_data_crop.shape[0], 1, 1, 1))) / std.reshape(
             (new_data_crop.shape[0], 1, 1, 1))
-        new_data_crop[~mask] = 0
+        #new_data_crop[~mask] = 0
 
         #new_data_crop = new_data_crop.transpose((2,1,0))
 
@@ -150,10 +161,24 @@ if __name__ == '__main__':
                  pad_left[2]:-pad_right[2] or None]
 
 # ==========================
+        output_crop = output_crop > 0.5
 
-        output_crop = np.argmax(output_crop,axis=0).astype(np.uint8)
+        wt = output_crop[0]
+        tc = output_crop[1]
+        et = output_crop[2]
 
-        output_header = nii.Nifti1Image(output_crop, affine)
+
+        output_crop = np.zeros(shape = output_crop.shape[1:],dtype = np.uint8)
+        output_crop[wt] = 2
+        output_crop[tc] = 1
+        output_crop[et] = 4
+
+
+        output = np.zeros(shape=image.shape[1:],dtype=np.uint8)
+        output[bbox[0, 0]:bbox[1, 0], bbox[0, 1]:bbox[1, 1], bbox[0, 2]:bbox[1, 2]] = output_crop
+
+
+        output_header = nii.Nifti1Image(output, affine)
 
         nii.save(output_header, os.path.join(output_path,f+'.nii.gz'))
 
