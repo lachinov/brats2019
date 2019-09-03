@@ -335,6 +335,39 @@ class Attention(nn.Module):
 
         return (attention).view(N, C, D, H, W)
 
+class ResDeconv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResDeconv, self).__init__()
+        print("ResDeconv in_channels = ", in_channels, "out_channels = ", out_channels)
+        self.up1 = nn.Upsample(scale_factor=2)
+        self.conv1 = nn.Conv3d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.deconv1 = nn.ConvTranspose3d(in_channels=in_channels, out_channels=out_channels, kernel_size=2, stride=2, padding=0, bias=False)
+        self.prelu1 = nn.PReLU()
+
+        #self.up2 = nn.Upsample(scale_factor=2)
+        #self.conv2 = nn.Conv3d(in_channels=out_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        #self.deconv2 = nn.ConvTranspose3d(in_channels=out_channels, out_channels=out_channels, kernel_size=2, stride=2, padding=0, bias=False)
+        #self.prelu2 = nn.PReLU()
+
+    def forward(self, x):
+        print("x size = ", x.size())
+        low_f = self.up1(x)
+        print("low size = ", low_f.size())
+        low_f = self.conv1(low_f)
+        print("low size = ", low_f.size())
+        high_f = self.deconv1(x)
+        print("high size = ", high_f.size())
+        high_f = self.prelu1(high_f)
+        print("high size = ", high_f.size())
+        out = low_f + high_f
+
+        #low_f2 = self.up2(out)
+        #low_f2 = self.conv2(low_f2)
+        #high_f2 = self.deconv2(out)
+        #high_f2 = self.prelu2(high_f2)
+        #out = low_f2 + high_f2
+        return out
+
 class UNet(nn.Module):
     def __init__(self, depth, encoder_layers, number_of_channels, number_of_outputs, block=ResNextBottleneck):
         super(UNet, self).__init__()
@@ -412,6 +445,7 @@ class UNet(nn.Module):
         #self.conv_output_reg = nn.Conv3d(in_channels=self.number_of_channels//4,out_channels=1,kernel_size=3, stride=1,padding=0,bias=True)
         #self.conv_output_attention = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=3, stride=1,padding=1,bias=True)
         self.softmax = nn.Softmax(dim=1)
+        self.sigmoid = nn.Sigmoid()
         #self.softmax_ds = nn.Softmax(dim=1)
         self.construct_dencoder_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_encoder_convs(depth=depth,number_of_channels=number_of_channels)
@@ -488,7 +522,8 @@ class UNet(nn.Module):
 
     def construct_upsampling_convs(self, depth, number_of_channels):
         for i in range(depth-1):
-            conv = nn.ConvTranspose3d(in_channels=number_of_channels[i+1],out_channels=number_of_channels[i], kernel_size=2,stride=2,padding=0,bias=False)
+            #conv = nn.ConvTranspose3d(in_channels=number_of_channels[i+1],out_channels=number_of_channels[i], kernel_size=2,stride=2,padding=0,bias=False)
+            conv = ResDeconv(in_channels=self.number_of_channels[i+1],out_channels=self.number_of_channels[i])
 
             #conv = UpsamplingPixelShuffle(input_channels=number_of_channels[i+1], output_channels=number_of_channels[i])
 
@@ -505,10 +540,6 @@ class UNet(nn.Module):
 
         N, C, W, H, D = input.shape
 
-
-        #in_norm = self.LCNorm(input)
-        #in_conc = torch.cat((input,in_norm),dim=1)
-
         conv = self.conv_input(input)
         conv = self.norm_input(conv)
         conv = self.conv_first(conv)
@@ -517,32 +548,19 @@ class UNet(nn.Module):
             skip_connections.append(conv)
             conv = self.encoder_convs[i](conv)
 
-        #conv = self.conv_middle(conv)
-        #conv = self.relu(conv)
-
-        #up_list = []
-
         for i in reversed(range(self.depth-1)):
             conv = self.upsampling[i](conv)
             conv = self.relu(conv)
-
-            #conv = self.attention_convs[i](skip_connections[i], conv)
 
             conc = torch.cat([skip_connections[i],conv],dim=1)
             conv = self.decoder_convs1x1[i](conc)
             conv = self.relu(conv)
             conv = self.decoder_convs[i](conv)
-            #up_list.append(conv)
-
-
-
-        #out = self.conv_final(conv)
-        #out_ds = self.conv_final_ds(up_list[-3])
 
         out_logits = self.conv_output(conv)
 
-        out_logits = self.softmax(out_logits)
-        #out_logits_ds = self.sigmoid(out_ds)
+        #out_logits = self.softmax(out_logits)
+        out_logits = self.sigmoid(out_logits)
 
         #print('torch mean ', mean)
 
