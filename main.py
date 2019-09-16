@@ -22,8 +22,8 @@ parser.add_argument("--batchSize", type=int, default=1, help="training batch siz
 parser.add_argument("--preEpochs", type=int, default=500, help="number of epochs to train for")
 parser.add_argument("--nEpochs", type=int, default=500, help="number of epochs to train for")
 parser.add_argument("--threads", type=int, default=0, help="Number of threads for data loader to use, Default: 1")
-parser.add_argument("--train_path", default="", type=str, help="path to train data")
-parser.add_argument("--pretrain_path", default="", type=str, help="path to train data")
+parser.add_argument("--train_path", default="", nargs='+', type=str, help="path to train data")
+parser.add_argument("--annotation_path", default="", type=str, help="path to annotation")
 parser.add_argument("--name", default="test", type=str, help="experiment name")
 parser.add_argument("--models_path", default="/models", type=str, help="path to models folder")
 parser.add_argument("--gpus", default=1, type=int, help="number of gpus")
@@ -49,7 +49,7 @@ def main():
     torch.cuda.manual_seed(opt.seed)
 
 
-    series = [f for f in os.listdir(opt.train_path) if os.path.isdir(os.path.join(opt.train_path, f))]
+    series = [f for f in os.listdir(opt.train_path[0]) if os.path.isdir(os.path.join(opt.train_path[0], f))]
     series.sort()
 
 
@@ -61,7 +61,7 @@ def main():
     model.apply(weight_init.weight_init)
     model = torch.nn.DataParallel(module=model, device_ids=range(opt.gpus))
 
-    trainer = train.Trainer(model=model, name=opt.name, models_root=opt.models_path, rewrite=True)
+    trainer = train.Trainer(model=model, name=opt.name, models_root=opt.models_path, rewrite=False)
     trainer.cuda()
         
     gc.collect()
@@ -75,7 +75,7 @@ def main():
     cudnn.benchmark = True
 
     print("===> Loading datasets")
-    print('Train data:', opt.train_path, opt.pretrain_path)
+    print('Train data:', opt.train_path)
 
 
     series_val = ['BraTS19_2013_0_1',
@@ -109,8 +109,10 @@ def main():
     print('Train {}'.format(series_train))
     print('Val {}'.format(series_val))
 
-    train_set = dataloader.SimpleReader(paths=[opt.train_path,opt.pretrain_path],patch_size=(144, 144, 128), series=[series_train,None], images_in_epoch=4000, patches_from_single_image=1)
-    val_set = dataloader.FullReader(path=opt.train_path,series=series_val)
+    train_set = dataloader.SimpleReader(paths=opt.train_path, patch_size=(144, 144, 128), series=[series_train,]+[None for i in range(len(opt.train_path)-1)], annotation_path=opt.annotation_path, images_in_epoch=8000, patches_from_single_image=1)
+    #train_set = dataloader.SimpleReader(paths=[opt.train_path,], patch_size=(144, 144, 128),
+    #                                    series=[series_val,], images_in_epoch=4000, patches_from_single_image=1)
+    val_set = dataloader.FullReader(path=opt.train_path[0],series=series_val)
 
     training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads,
                                       batch_size=opt.batchSize, shuffle=True, drop_last=True, worker_init_fn=worker_init_fn)
@@ -137,15 +139,15 @@ def main():
 
     trainer.train(criterion=criterion,
                   optimizer=optim.Adam,
-                  optimizer_params={"lr": 1e-4,
+                  optimizer_params={"lr": 2e-5,
                                     "weight_decay": 1e-6,
                                     # "nesterov":True,
-                                    # "momentum":0.9
+                                    #"momentum":0.9,
                                     "amsgrad": True,
                                     },
-                  scheduler=torch.optim.lr_scheduler.MultiStepLR,
-                  scheduler_params={"milestones": [120000],
-                                    "gamma": 0.2,
+                  scheduler=torch.optim.lr_scheduler.StepLR,
+                  scheduler_params={"step_size": 16000,
+                                    "gamma": 0.5,
                                     # "T_max":3000,
                                     # "eta_min":1e-3
 
@@ -167,7 +169,7 @@ def main():
                   default_val=np.array([0, 0, 0, 0, 0]),
                   comparator=lambda x, y: np.min(x) + np.mean(x) > np.min(y) + np.mean(y),
                   eval_cpu=False,
-                  continue_form_pretraining=True
+                  continue_form_pretraining=False
                   )
 
 

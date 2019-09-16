@@ -11,6 +11,7 @@ from scipy.ndimage import gaussian_filter
 from datetime import datetime
 from scipy.ndimage.filters import median_filter
 from scipy.ndimage import affine_transform
+import tqdm
 
 import loader_helper
 
@@ -64,12 +65,13 @@ def normalize(image, mask):
 
 
 class SimpleReader(data.Dataset):
-    def __init__(self, paths, patch_size, series = None, images_in_epoch=4000, patches_from_single_image=1):
+    def __init__(self, paths, patch_size, series = None, annotation_path = None, images_in_epoch=4000, patches_from_single_image=1):
         super(SimpleReader, self).__init__()
         self.paths = paths
         self.patch_size = patch_size
         self.images_in_epoch = images_in_epoch
         self.patches_from_single_image = patches_from_single_image
+        self.annotation_path = annotation_path
 
         self.series = []
 
@@ -96,9 +98,10 @@ class SimpleReader(data.Dataset):
 
     def __cache(self):
         # cache locations of the labels (bounding boxes) inside the images
-        for p, f in self.series:
+        print('Cache files')
+        for p, f in tqdm.tqdm(self.series):
 
-            image, label, affine = loader_helper.read_multimodal(p, f, True)
+            image, label, affine = loader_helper.read_multimodal(p, f, self.annotation_path, True)
 
 
             bbox = loader_helper.bbox3(label>0)
@@ -120,7 +123,7 @@ class SimpleReader(data.Dataset):
             self.current_image_index = index
 
             p, f = self.series[index]
-            self.image, self.label, affine = loader_helper.read_multimodal(p, f, True)
+            self.image, self.label, affine = loader_helper.read_multimodal(p, f, self.annotation_path, True)
 
 
             mask = self.image > 0
@@ -174,7 +177,7 @@ class SimpleReader(data.Dataset):
         #data_out = np.stack([elastic_transform(data_out[i], alpha, sigma, 1, np.random.RandomState(seed)) for i in range(data_out.shape[0])],axis=0)
 
         label_out = affine_transform(label_out, (1, x_scale, y_scale, z_scale), order=1, mode='reflect')
-        #label_out = elastic_transform(label_out, alpha, sigma, 0, np.random.RandomState(seed))
+        #label_out = np.stack([elastic_transform(label_out[i], alpha, sigma, 0, np.random.RandomState(seed)) for i in range(data_out.shape[0])],axis=0)
 
         #label_out = (label_out > 0)[None]
 
@@ -187,20 +190,18 @@ class SimpleReader(data.Dataset):
             data_out = data_out[:,:,::-1,:].copy()
             label_out = label_out[:,:,::-1,:].copy()
 
-        #if random.random() > 0.5:
-        #    data_out = data_out.transpose((0,1,3,2)).copy()
-        #    label_out = label_out.transpose((0,1,3,2)).copy()
+        if random.random() > 0.5:
+            data_out = data_out[:,:,:,::-1].copy()
+            label_out = label_out[:,:,:,::-1].copy()
 
-        #if random.random() > 0.5:
-        #    data_out = data_out[:,:,:,::-1].copy()
-        #    label_out = label_out[:,:,:,::-1].copy()
+        if random.random() > 0.5:
+            data_out = data_out.transpose((0,2,1,3)).copy()
+            label_out = label_out.transpose((0,2,1,3)).copy()
 
 
-        #data_out = data_out / 500
+        data_out = data_out * np.random.uniform(0.9,1.1,size=(data_out.shape[0],1,1,1))
 
-        data_out = data_out * (0.6+random.random()*0.8)
-
-        data_out = data_out + 1.2*(random.random() - 0.5)
+        data_out = data_out + np.random.uniform(-0.2,0.2,size=(data_out.shape[0],1,1,1))
 
 
 
@@ -246,7 +247,7 @@ class FullReader(data.Dataset):
 
     def __getitem__(self, index):
 
-        image, label, affine = loader_helper.read_multimodal(self.path, self.series[index], True)
+        image, label, affine = loader_helper.read_multimodal(data_path=self.path, series=self.series[index], read_annotation=True)
 
         #image = image - image.mean()
         #image = image / image.var() ** 0.5

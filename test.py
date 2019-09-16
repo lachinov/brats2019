@@ -11,6 +11,7 @@ from scipy.ndimage import zoom
 from skimage.filters import threshold_otsu
 import pickle
 from scipy.ndimage.filters import median_filter
+from skimage import morphology
 
 
 parser = argparse.ArgumentParser(description="PyTorch SegTHOR")
@@ -49,15 +50,27 @@ def get_bbox(data):
     bboxes = np.stack([loader_helper.bbox3(d) for d in data],axis=0)
     return np.stack([np.min(bboxes[:,0],axis=0),np.max(bboxes[:,1],axis=0)],axis=0)
 
+def reject_small_regions(connectivity, ratio=0.25):
+    resulting_connectivity = connectivity.copy()
+    unique, counts = np.unique(connectivity, return_counts=True)
+
+    all_nonzero_clusters = np.prod(connectivity.shape) - np.max(counts)
+
+    for i in range(unique.shape[0]):
+        if counts[i] < ratio * all_nonzero_clusters:
+            resulting_connectivity[resulting_connectivity == unique[i]] = 0
+
+    return resulting_connectivity
+
 if __name__ == '__main__':
     opt = parser.parse_args()
     print(torch.__version__)
     print(opt)
-    path = '/home/dlachinov/brats2019/data/MICCAI_BraTS_2019_Data_Validation'#'/home/dlachinov/brats2019/data/2019_cropped'
-    output_path = '/home/dlachinov/brats2019/data/out_val'#'/home/dlachinov/brats2019/data/out'
+    path = '/home/dlachinov/brats2019/data/MICCAI_BraTS_2019_Data_Testing'#'/home/dlachinov/brats2019/data/2019_cropped'
+    output_path = '/home/dlachinov/brats2019/data/out_testr4_f'#'/home/dlachinov/brats2019/data/out'
 
     trainer = train.Trainer(name=opt.name, models_root=opt.models_path, rewrite=False, connect_tb=False)
-    trainer._load('_epoch_17')
+    trainer.load_best()
     #trainer.model = trainer.model.module.cpu()
     # trainer.model.eval()
     trainer.state.cuda = True
@@ -69,7 +82,7 @@ if __name__ == '__main__':
 
     for f in series:
 
-        image, label, affine = loader_helper.read_multimodal(path, f, False)
+        image, label, affine = loader_helper.read_multimodal(data_path=path, series=f, read_annotation=False)
 
         bbox = get_bbox(image)
 
@@ -112,9 +125,9 @@ if __name__ == '__main__':
         new_data_crops = []
 
         new_data_crops.append(new_data_crop)
-        #new_data_crops.append(new_data_crop[::-1,:,:].copy())
-        #new_data_crops.append(new_data_crop[:,::-1,:].copy())
-        #new_data_crops.append(new_data_crop[::-1,::-1,:].copy()*1.2)
+        new_data_crops.append(new_data_crop[:,::-1,:,:].copy())
+        new_data_crops.append(new_data_crop[:,:,::-1,:].copy())
+        new_data_crops.append(new_data_crop[:,::-1,::-1,:].copy())
         #new_data_crops.append(new_data_crop*1.2)
         ##new_data_crops.append(new_data_crop[:,::-1,:].copy()+0.1)
         ##new_data_crops.append(new_data_crop[:,:,::-1].copy()+0.1)
@@ -135,13 +148,13 @@ if __name__ == '__main__':
 
             outputs.append(output_crop)
 
-        #outputs[1] = outputs[1][:, ::-1, :, :].copy()
+        outputs[1] = outputs[1][:, ::-1, :, :].copy()
         ##outputs[5] = outputs[5][:, :, ::-1, :].copy()
 
-        #outputs[2] = outputs[2][:, :, ::-1, :].copy()
+        outputs[2] = outputs[2][:, :, ::-1, :].copy()
         ##outputs[6] = outputs[6][:, :, :, ::-1].copy()
 
-        #outputs[3] = outputs[3][:, ::-1, ::-1, :].copy()
+        outputs[3] = outputs[3][:, ::-1, ::-1, :].copy()
         ##outputs[7] = outputs[7][:, :, :, ::-1].copy()
 
         #for idx, o in enumerate(outputs):
@@ -167,11 +180,21 @@ if __name__ == '__main__':
         tc = output_crop[1]
         et = output_crop[2]
 
+        wt_vol = wt.sum()
+        tc_vol = tc.sum()
+        et_vol = et.sum()
+
 
         output_crop = np.zeros(shape = output_crop.shape[1:],dtype = np.uint8)
         output_crop[wt] = 2
         output_crop[tc] = 1
-        output_crop[et] = 4
+        if et_vol > 32:
+            output_crop[et] = 4
+
+
+        connected_regions = morphology.label(output_crop > 0)
+        clusters = reject_small_regions(connected_regions, 0.1)
+        output_crop[clusters == 0] = 0
 
 
         output = np.zeros(shape=image.shape[1:],dtype=np.uint8)
@@ -183,4 +206,4 @@ if __name__ == '__main__':
         nii.save(output_header, os.path.join(output_path,f+'.nii.gz'))
 
 
-        print(f, output_crop.shape, output_crop.dtype)
+        print(f, output_crop.shape, output_crop.dtype, wt_vol, tc_vol, et_vol)

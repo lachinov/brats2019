@@ -125,8 +125,8 @@ class Residual(nn.Module):
         #self.pad1 = Pad(size=1)
         self.conv2 = conv(in_channels=out_channels, out_channels=out_channels,stride=1)
         #self.pad2 = Pad(size=1)
-        self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
+        self.relu1 = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=True)
+        self.relu2 = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=True)
         self.norm1 = nn.GroupNorm(num_groups=8, num_channels=out_channels)#nn.InstanceNorm3d(num_features=out_channels,affine=True)
         self.norm2 = nn.GroupNorm(num_groups=8, num_channels=out_channels)#nn.InstanceNorm3d(num_features=out_channels,affine=True)
         #self.se = SEBlock(channel=in_channels, reduction=4)
@@ -137,15 +137,15 @@ class Residual(nn.Module):
             x = self.downsample(x)
 
         out = x
+        out = self.conv1(out)
         out = self.norm1(out)
         out = self.relu1(out)
         #out = self.pad1(out)
-        out = self.conv1(out)
 
+        out = self.conv2(out)
         out = self.norm2(out)
         out = self.relu2(out)
         #out = self.pad2(out)
-        out = self.conv2(out)
 
         out = x + out
 
@@ -186,14 +186,14 @@ class BasicBlock(nn.Module):
         return out
 
 class ResNextBottleneck(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, downsample = None, width=2, compression=4):
+    def __init__(self, in_channels, out_channels, stride, downsample = None, width=4, compression=4):
         super(ResNextBottleneck, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
 
         self.downsample = downsample
 
-        conv_groups = 4#out_channels // (width*compression)
+        conv_groups = out_channels // (width*compression)
 
         self.conv_pre = nn.Conv3d(in_channels=in_channels, out_channels=out_channels//compression, kernel_size=1, stride=1,
                                padding=0, bias=False, groups=1)
@@ -203,15 +203,15 @@ class ResNextBottleneck(nn.Module):
         #self.conv2 = conv(in_channels=out_channels//compression, out_channels=out_channels//compression,stride=1)
         #nn.Conv3d(in_channels=out_channels//compression, out_channels=out_channels//compression, kernel_size=3, padding=1, bias=False, groups=conv_groups)
         #self.pad2 = Pad(size=1)
-        self.relu1 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.relu2 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.relu3 = nn.ReLU(inplace=True)#nn.ReLU(inplace=True)
-        self.norm1 = nn.InstanceNorm3d(num_features=out_channels//compression, affine=True)#nn.GroupNorm(num_channels=in_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm2 = nn.InstanceNorm3d(num_features=out_channels//compression, affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
-        self.norm3 = nn.InstanceNorm3d(num_features=out_channels, affine=True)#nn.GroupNorm(num_channels=out_channels,num_groups=norm_groups)#nn.InstanceNorm3d(num_features=out_channels)
+        self.relu1 = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=True)
+        self.relu2 = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=True)
+        self.relu3 = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=True)
+        self.norm1 = nn.GroupNorm(num_channels=out_channels//compression,num_groups=8)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm2 = nn.GroupNorm(num_channels=out_channels//compression,num_groups=8)#nn.InstanceNorm3d(num_features=out_channels)
+        self.norm3 = nn.GroupNorm(num_channels=out_channels,num_groups=8)#nn.InstanceNorm3d(num_features=out_channels)
         self.conv_post = nn.Conv3d(in_channels=out_channels // compression, out_channels=out_channels,
                                kernel_size=1, padding=0, bias=False, groups=1)
-        #self.se = SEBlock(channel=out_channels, reduction=4)
+        self.se = SEBlock(channel=out_channels, reduction=4)
 
     def forward(self, x):
 
@@ -232,6 +232,7 @@ class ResNextBottleneck(nn.Module):
         out = self.norm3(out)
 
         out = x + out
+        out = self.se(out)
         out = self.relu3(out)
 
         return out
@@ -377,15 +378,16 @@ class UNet(nn.Module):
         self.norm_input = nn.GroupNorm(num_groups=8, num_channels=self.number_of_channels[0])#nn.BatchNorm3d(num_features=self.number_of_channels[0],affine=True,track_running_stats=True,momentum=0.5)
 
         conv_first_list = []
+        #conv_first_list.append(nn.Dropout3d(p=0.25))
         for i in range(self.encoder_layers[0]):
             conv_first_list.append(self.block(in_channels=self.number_of_channels[0],out_channels=self.number_of_channels[0],stride=1))
 
         self.conv_first = nn.Sequential(*conv_first_list)
 
-        self.conv_middle = nn.Conv3d(in_channels=self.number_of_channels[-1], out_channels=self.number_of_channels[-1],
-                                    kernel_size=3, stride=1, padding=1, bias=False)
-        self.relu = nn.ReLU(inplace=True)#nn.ReLU(inplace=False)#nn.LeakyReLU(0.2, inplace=True)
-        self.sigmoid = nn.Sigmoid()
+
+        #self.conv_att = nn.Conv3d(in_channels=self.number_of_channels[-1], out_channels=self.number_of_outputs,
+        #                            kernel_size=1, stride=1, padding=0, bias=True)
+
 
         #self.conv_output = nn.Sequential(
         #    nn.Conv3d(in_channels=self.number_of_channels, out_channels=self.number_of_channels, kernel_size=3,
@@ -423,47 +425,21 @@ class UNet(nn.Module):
         #self.conv_output_attention = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=3, stride=1,padding=1,bias=True)
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
+        self.relu = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=False)#nn.LeakyReLU(0.2, inplace=True)
         #self.softmax_ds = nn.Softmax(dim=1)
         self.construct_dencoder_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_encoder_convs(depth=depth,number_of_channels=number_of_channels)
         #self.construct_pooling_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_upsampling_convs(depth=depth,number_of_channels=number_of_channels)
 
-        #self.conv_eso = nn.Conv1d(in_channels=8,#self.number_of_channels*int(math.pow(2,depth)),
-        #                          out_channels=8,#self.number_of_channels*int(math.pow(2,depth)),
-        #                          kernel_size=3, stride=1, padding=1, bias=False)
-        
-        #self.conv_eso_deep_supervised = nn.Conv1d(in_channels=4,
-        #                          out_channels=1,
-        #                          kernel_size=3, stride=1, padding=1, bias=True)
-        
-        
-        #self.conv_deep_supervised = nn.Conv3d(in_channels=self.number_of_channels*int(math.pow(2,depth-2)),
-        #                          out_channels=self.number_of_outputs,
-        #                          kernel_size=3, stride=1, padding=1, bias=True)
-        
-        #self.conv_eso_final = nn.Conv1d(in_channels=1,
-        #                          out_channels=1,
-        #                          kernel_size=9, stride=1, padding=4, bias=True)
-
-        #self.norm = nn.InstanceNorm3d(num_features=8)
-        #self.adaptive_pool = nn.AdaptiveMaxPool3d(output_size=(None,1,1))
-
-        #for m in self.modules():
-        #    if isinstance(m, nn.Conv2d):
-        #        n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-        #        m.weight.data.normal_(0, math.sqrt(2. / n))
-        #        if m.bias is not None:
-        #            m.bias.data.zero_()
-
     def _make_encoder_layer(self, in_channels, channels, blocks, stride=1, block=ResNextBottleneck):
         downsample = None
         if stride != 1:
             downsample = nn.Sequential(
                 #DownsamplingPixelShuffle(input_channels=in_channels, output_channels=channels,ratio=stride),
-                #nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=2, stride=stride, bias=False)
-                nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=1, stride=1, bias=False),
-                Trilinear(scale=0.5),
+                nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=2, stride=stride, bias=False)
+                #nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=1, stride=1, bias=False),
+                #Trilinear(scale=0.5),
             )
 
         layers = []
@@ -534,6 +510,7 @@ class UNet(nn.Module):
             skip_connections.append(conv)
             conv = self.encoder_convs[i](conv)
 
+
         #conv = self.conv_middle(conv)
         #conv = self.relu(conv)
 
@@ -547,7 +524,7 @@ class UNet(nn.Module):
 
             conc = torch.cat([skip_connections[i],conv],dim=1)
             conv = self.decoder_convs1x1[i](conc)
-            conv = self.relu(conv)
+            #conv = self.relu(conv)
             conv = self.decoder_convs[i](conv)
             #up_list.append(conv)
 
