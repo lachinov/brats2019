@@ -69,5 +69,7 @@ torchvision            0.4.0
 tqdm                   4.32.2x`
 ```
 
-##Citation
+## Citation
+
 TBD
+
