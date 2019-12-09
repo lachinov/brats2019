@@ -1,6 +1,7 @@
 # Knowledge Distillation for Brain Tumor Segmentation
 This code was written for participation in the [Brain Tumor Segmentation Challenge](http://braintumorsegmentation.org/) (BraTS) 2019.
-The code is based on [the corresponding paper](TBD), where we employ knwoledge distillation for automatic brain tumor segmentation.
+The code is based on [the corresponding paper](TBD), where we employ knowledge distillation for automatic brain tumor segmentation.
+First, we annotated unlabeled data with ensemble of different models. Then, we trained simple UNet model with residual blocks.
 This repository contains the code for inferencing the distilled model.
 
 ## Network achitecture
@@ -20,7 +21,7 @@ This repository contains the code for inferencing the distilled model.
 
 
 ## Pre-trained model
-Download checkpoint with the following [link](https://drive.google.com/file/d/1YX5B3fV_g7eDMIr2Ow5cN0CGNNIYn4Y0/view?usp=sharing), where models directory name is 'models_sm_1' and model itself has the name 'only_seg'.
+Download checkpoint with the following [link](https://drive.google.com/file/d/1YX5B3fV_g7eDMIr2Ow5cN0CGNNIYn4Y0/view?usp=sharing), where the model has the name `brain-tumor-segmentation-0002`.
 
 
 ## How to perform prediction
