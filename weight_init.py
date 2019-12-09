@@ -1,6 +1,4 @@
 #https://gist.github.com/jeasinema/ed9236ce743c8efaf30fa2ff732749f5
-#!/usr/bin/env python
-# -*- coding:UTF-8 -*-
 
 import torch
 import torch.nn as nn

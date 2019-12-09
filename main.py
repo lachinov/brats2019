@@ -12,12 +12,10 @@ import torch.optim as optim
 import loss
 import metrics
 import os
-from sklearn.model_selection import train_test_split, KFold
-import pickle
 import weight_init
 import gc
 
-parser = argparse.ArgumentParser(description="PyTorch SegTHOR")
+parser = argparse.ArgumentParser(description="PyTorch BraTS2019")
 parser.add_argument("--batchSize", type=int, default=1, help="training batch size")
 parser.add_argument("--preEpochs", type=int, default=500, help="number of epochs to train for")
 parser.add_argument("--nEpochs", type=int, default=500, help="number of epochs to train for")
@@ -56,7 +54,7 @@ def main():
     print("===> Building model")
     enc_layers = [1,2,2,4]
     dec_layers = [1,1,1,1]
-    number_of_channels=[int(8*2**i) for i in range(1,1+len(enc_layers))]#[32,128,256,512,1024]
+    number_of_channels=[int(8*2**i) for i in range(1,1+len(enc_layers))]
     model = UNet(depth=len(enc_layers), encoder_layers=enc_layers, decoder_layers=dec_layers, number_of_channels=number_of_channels, number_of_outputs=3)
     model.apply(weight_init.weight_init)
     model = torch.nn.DataParallel(module=model, device_ids=range(opt.gpus))
@@ -110,16 +108,10 @@ def main():
     print('Val {}'.format(series_val))
 
     train_set = dataloader.SimpleReader(paths=opt.train_path, patch_size=(144, 144, 128), series=[series_train,]+[None for i in range(len(opt.train_path)-1)], annotation_path=opt.annotation_path, images_in_epoch=8000, patches_from_single_image=1)
-    #train_set = dataloader.SimpleReader(paths=[opt.train_path,], patch_size=(144, 144, 128),
-    #                                    series=[series_val,], images_in_epoch=4000, patches_from_single_image=1)
     val_set = dataloader.FullReader(path=opt.train_path[0],series=series_val)
 
     training_data_loader = DataLoader(dataset=train_set, num_workers=opt.threads,
                                       batch_size=opt.batchSize, shuffle=True, drop_last=True, worker_init_fn=worker_init_fn)
-
-    #pretraining_data_loader = DataLoader(dataset=pretrain_set, num_workers=opt.threads,
-    #                                  batch_size=opt.batchSize, shuffle=True, drop_last=True,
-    #                                  worker_init_fn=worker_init_fn)
 
     batch_sampler = Data.BatchSampler(
         sampler=Data.SequentialSampler(val_set),
@@ -141,28 +133,20 @@ def main():
                   optimizer=optim.Adam,
                   optimizer_params={"lr": 2e-5,
                                     "weight_decay": 1e-6,
-                                    # "nesterov":True,
-                                    #"momentum":0.9,
                                     "amsgrad": True,
                                     },
                   scheduler=torch.optim.lr_scheduler.StepLR,
                   scheduler_params={"step_size": 16000,
                                     "gamma": 0.5,
-                                    # "T_max":3000,
-                                    # "eta_min":1e-3
-
                                     },
                   training_data_loader=training_data_loader,
                   evaluation_data_loader=evaluation_data_loader,
                   split_into_tiles=False,
                   pretrained_weights=None,
                   train_metrics=[metrics.Dice(name='Dice', input_index=0, target_index=0, classes=4), \
-                                 # metrics.DiceWT(name='DiceWT', input_index=0, target_index=0)
                                  ],
                   val_metrics=[metrics.Dice(name='Dice', input_index=0, target_index=0, classes=4),
-                               # metrics.DiceWT(name='DiceWT', input_index=0, target_index=0),
                                metrics.Hausdorff_ITK(name='Hausdorff_ITK', input_index=0, target_index=0, classes=4),
-                               # metrics.Hausdorff_ITKWT(name='Hausdorff_ITKWT', input_index=0, target_index=0)
                                ],
                   track_metric='Dice',
                   epoches=opt.nEpochs,

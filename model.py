@@ -4,17 +4,6 @@ import math
 import gc
 import torch.nn.functional as F
 
-class LCNorm(nn.Module):
-    def __init__(self):
-        super(LCNorm, self).__init__()
-
-    def forward(self, x):
-        x2_mean = F.avg_pool3d(x * x, kernel_size=9, padding=4, stride=1)
-        x_mean = F.avg_pool3d(x, kernel_size=9, padding=4, stride=1)
-        x_std = torch.sqrt(x2_mean - x_mean * x_mean + 0.03)
-        x = (x - x_mean) / (x_std)
-        return x
-
 class Trilinear(nn.Module):
     def __init__(self, scale):
         super(Trilinear, self).__init__()
@@ -24,16 +13,6 @@ class Trilinear(nn.Module):
         out = F.interpolate(x,scale_factor=self.scale,mode='trilinear')
         return out
 
-
-#class Pad(nn.Module):
-#    def __init__(self, size = 0):
-#        super(Pad, self).__init__()
-#        self.size = size
-#
-#    def forward(self, x):
-#        if self.size > 0:
-#            x = F.pad(x,[self.size]*6,mode='replicate')
-#        return x
 
 class SEBlock(nn.Module):
     def __init__(self, channel, reduction=16):
@@ -98,20 +77,6 @@ class conv(nn.Module):
         out = self.conv1(out)
         #out = self.conv2(out)
         return out
-'''
-class conv(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, groups):
-        super(conv, self).__init__()
-
-        self.conv1 = nn.Conv3d(in_channels=in_channels, out_channels=out_channels,
-                               kernel_size=3, stride=stride, padding=1, bias=False, groups=groups)
-
-    def forward(self, x):
-        #out = x
-        out = self.conv1(x)
-        return out
-
-'''
 
 class Residual(nn.Module):
     def __init__(self, in_channels, out_channels, stride, downsample = None, conv_groups=1):
@@ -304,18 +269,13 @@ class Attention(nn.Module):
         self.input_channels = input_channels
         self.attention_gates = attention_gates
         self.conv_enc = nn.Conv3d(in_channels = input_channels, out_channels=input_channels, kernel_size=1, padding=0, bias=False)
-        #self.pad_enc = Pad(size=1)
         self.conv_dec = nn.Conv3d(in_channels=input_channels, out_channels=input_channels, kernel_size=1, padding=0,
                                   bias=False)
-        #self.pad_dec = Pad(size=1)
         self.conv_output = nn.Conv3d(in_channels=input_channels, out_channels=attention_gates, kernel_size=1, padding=0,
                                   bias=False)
-        #self.pad_out = Pad(size=1)
 
         self.relu = nn.ReLU(inplace=False)
         self.sigmoid = nn.Sigmoid()
-        #self.norm1 = nn.GroupNorm(num_channels=input_channels,num_groups=4)
-        #self.norm2 = nn.GroupNorm(num_channels=input_channels,num_groups=4)
 
         self.conv_last_channel_attention = nn.Conv1d(in_channels=input_channels, out_channels=attention_gates, kernel_size=5, padding=2,
                                      bias=False)
@@ -385,61 +345,21 @@ class UNet(nn.Module):
         self.conv_first = nn.Sequential(*conv_first_list)
 
 
-        #self.conv_att = nn.Conv3d(in_channels=self.number_of_channels[-1], out_channels=self.number_of_outputs,
-        #                            kernel_size=1, stride=1, padding=0, bias=True)
-
-
-        #self.conv_output = nn.Sequential(
-        #    nn.Conv3d(in_channels=self.number_of_channels, out_channels=self.number_of_channels, kernel_size=3,
-        #              stride=1, padding=1, bias=False),
-        #    nn.ReLU(inplace=True)
-        #)
-
-        #conv_final_list = []
-
-        ##for i in range(self.encoder_layers[0]):
-        ##    conv_final_list.append(Residual_bottleneck(in_channels=self.number_of_channels,out_channels=self.number_of_channels,stride=1))
-
-        #for i in range(2):
-        #    conv_final_list.append(nn.Conv3d(in_channels=self.number_of_channels[0], out_channels=self.number_of_channels[0],
-        #                            kernel_size=3, stride=1, padding=1, bias=False, groups = 1))
-        #    conv_final_list.append(nn.InstanceNorm3d(num_features=self.number_of_channels))
-        #    conv_final_list.append(nn.LeakyReLU(2e-2, inplace=True))
-
-        #self.conv_final = nn.Sequential(*conv_final_list)
-
-        #self.conv_final_ds = nn.Sequential(
-        #    nn.Conv3d(in_channels=self.number_of_channels[2], out_channels=self.number_of_channels[0],
-        #                            kernel_size=3, stride=1, padding=1, bias=True, groups = 1),
-        #    nn.LeakyReLU(2e-2, inplace=True),
-        #    nn.Conv3d(in_channels=self.number_of_channels[0], out_channels=self.number_of_outputs-1,
-        #              kernel_size=1, stride=1, padding=0, bias=True, groups=1)
-        #)
-
-
         self.conv_output = nn.Conv3d(in_channels=self.number_of_channels[0],out_channels=self.number_of_outputs,kernel_size=3, stride=1,padding=1,bias=True,groups=1)
 
-        #self.mean = Mean()
-        #self.conv_output_distance = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=1, stride=1,padding=0,bias=True,groups=1)
-        #self.conv_output_reg = nn.Conv3d(in_channels=self.number_of_channels//4,out_channels=1,kernel_size=3, stride=1,padding=0,bias=True)
-        #self.conv_output_attention = nn.Conv3d(in_channels=self.number_of_channels,out_channels=1,kernel_size=3, stride=1,padding=1,bias=True)
         self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
-        self.relu = nn.LeakyReLU(1e-2,inplace=True)#nn.ReLU(inplace=False)#nn.LeakyReLU(0.2, inplace=True)
-        #self.softmax_ds = nn.Softmax(dim=1)
+        self.relu = nn.LeakyReLU(1e-2,inplace=True)
+
         self.construct_dencoder_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_encoder_convs(depth=depth,number_of_channels=number_of_channels)
-        #self.construct_pooling_convs(depth=depth,number_of_channels=number_of_channels)
         self.construct_upsampling_convs(depth=depth,number_of_channels=number_of_channels)
 
     def _make_encoder_layer(self, in_channels, channels, blocks, stride=1, block=ResNextBottleneck):
         downsample = None
         if stride != 1:
             downsample = nn.Sequential(
-                #DownsamplingPixelShuffle(input_channels=in_channels, output_channels=channels,ratio=stride),
                 nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=2, stride=stride, bias=False)
-                #nn.Conv3d(in_channels=in_channels, out_channels=channels, kernel_size=1, stride=1, bias=False),
-                #Trilinear(scale=0.5),
             )
 
         layers = []
@@ -454,7 +374,6 @@ class UNet(nn.Module):
     def construct_encoder_convs(self, depth, number_of_channels):
         for i in range(depth-1):
             conv = self._make_encoder_layer(in_channels=number_of_channels[i],channels=number_of_channels[i+1],blocks=self.encoder_layers[i+1],stride=2, block=self.block)
-            #nn.Conv3d(in_channels=channels,out_channels=channels,kernel_size=3,padding=1,bias=True)#Residual(channels)
             self.encoder_convs.append(conv)
 
     def construct_dencoder_convs(self, depth, number_of_channels):
@@ -477,30 +396,18 @@ class UNet(nn.Module):
 
     def construct_upsampling_convs(self, depth, number_of_channels):
         for i in range(depth-1):
-            #conv = nn.ConvTranspose3d(in_channels=number_of_channels[i+1],out_channels=number_of_channels[i], kernel_size=2,stride=2,padding=0,bias=False)
             conv = nn.Sequential(
                 Trilinear(scale=2),
                 nn.Conv3d(in_channels=number_of_channels[i+1], out_channels=number_of_channels[i], kernel_size=1, stride=1, bias=False)
             )
 
-            #conv = UpsamplingPixelShuffle(input_channels=number_of_channels[i+1], output_channels=number_of_channels[i])
-
-            #self_attention = Attention(channels_out, attention_gates=self.number_of_outputs - 1)
-
             self.upsampling.append(conv)
-            #self.attention_convs.append(self_attention)
 
 
     def forward(self, x):
         skip_connections = []
         gc.collect()
         input = x[0]
-
-        N, C, W, H, D = input.shape
-
-
-        #in_norm = self.LCNorm(input)
-        #in_conc = torch.cat((input,in_norm),dim=1)
 
         conv = self.conv_input(input)
         conv = self.norm_input(conv)
@@ -510,144 +417,17 @@ class UNet(nn.Module):
             skip_connections.append(conv)
             conv = self.encoder_convs[i](conv)
 
-
-        #conv = self.conv_middle(conv)
-        #conv = self.relu(conv)
-
-        #up_list = []
-
         for i in reversed(range(self.depth-1)):
             conv = self.upsampling[i](conv)
             conv = self.relu(conv)
 
-            #conv = self.attention_convs[i](skip_connections[i], conv)
-
             conc = torch.cat([skip_connections[i],conv],dim=1)
             conv = self.decoder_convs1x1[i](conc)
-            #conv = self.relu(conv)
             conv = self.decoder_convs[i](conv)
-            #up_list.append(conv)
 
-
-
-        #out = self.conv_final(conv)
-        #out_ds = self.conv_final_ds(up_list[-3])
 
         out_logits = self.conv_output(conv)
 
-        #out_logits = self.softmax(out_logits)
         out_logits = self.sigmoid(out_logits)
 
-        #print('torch mean ', mean)
-
         return [out_logits]
-
-
-class UNet_hardcoded(nn.Module):
-    def __init__(self, number_of_channels, number_of_outputs):
-        super(UNet_hardcoded, self).__init__()
-        print('UNet {}'.format(number_of_channels))
-
-        self.number_of_channels = number_of_channels
-        self.number_of_outputs = number_of_outputs
-
-        self.conv_input = nn.Conv3d(in_channels=1, out_channels=self.number_of_channels, kernel_size=3, stride=1,
-                                    padding=1,
-                                    bias=False)
-
-        self.encoder_conv0_1 = Residual(in_channels=self.number_of_channels,out_channels=self.number_of_channels,stride=1)
-        self.encoder_conv0_2 = Residual(in_channels=self.number_of_channels,out_channels=self.number_of_channels,stride=1)
-
-        self.encoder_conv1_1 = Residual(in_channels=2*self.number_of_channels, out_channels=2*self.number_of_channels,
-                                        stride=1)
-        self.encoder_conv1_2 = Residual(in_channels=2*self.number_of_channels, out_channels=2*self.number_of_channels,
-                                        stride=1)
-
-        self.encoder_conv2_1 = Residual(in_channels=4 * self.number_of_channels,
-                                        out_channels=4 * self.number_of_channels,
-                                        stride=1)
-        self.encoder_conv2_2 = Residual(in_channels=4 * self.number_of_channels,
-                                        out_channels=4 * self.number_of_channels,
-                                        stride=1)
-
-        self.encoder_conv3_1 = Residual(in_channels=8 * self.number_of_channels,
-                                        out_channels=8 * self.number_of_channels,
-                                        stride=1)
-        self.encoder_conv3_2 = Residual(in_channels=8 * self.number_of_channels,
-                                        out_channels=8 * self.number_of_channels,
-                                        stride=1)
-
-        self.pooling_conv1 = Residual(in_channels=self.number_of_channels,out_channels=2*self.number_of_channels,stride=2,downsample=nn.Sequential(
-                nn.Conv3d(in_channels=self.number_of_channels, out_channels=2*self.number_of_channels, kernel_size=2, stride=2, bias=False),
-                nn.GroupNorm(num_channels=2*self.number_of_channels, num_groups=4)#nn.InstanceNorm3d(channels),
-                #nn.Dropout3d(p = 0.5, inplace=True)
-                ))
-
-        self.pooling_conv2 = Residual(in_channels=self.number_of_channels, out_channels=4 * self.number_of_channels,
-                                      stride=4, downsample=nn.Sequential(
-                nn.Conv3d(in_channels=self.number_of_channels, out_channels=4 * self.number_of_channels, kernel_size=4,
-                          stride=4, bias=False),
-                nn.GroupNorm(num_channels=4 * self.number_of_channels, num_groups=4)  # nn.InstanceNorm3d(channels),
-                # nn.Dropout3d(p = 0.5, inplace=True)
-            ))
-
-        self.pooling_conv3 = Residual(in_channels=self.number_of_channels, out_channels=8 * self.number_of_channels,
-                                      stride=8, downsample=nn.Sequential(
-                nn.Conv3d(in_channels=self.number_of_channels, out_channels=8 * self.number_of_channels, kernel_size=8,
-                          stride=8, bias=False),
-                nn.GroupNorm(num_channels=8 * self.number_of_channels, num_groups=4)  # nn.InstanceNorm3d(channels),
-                # nn.Dropout3d(p = 0.5, inplace=True)
-            ))
-
-
-        self.upsampling3 = UpsamplingPixelShuffle(input_channels=8*self.number_of_channels, output_channels=self.number_of_channels,ratio=8)
-        self.upsampling2 = UpsamplingPixelShuffle(input_channels=4 * self.number_of_channels,
-                                                  output_channels=self.number_of_channels,ratio=4)
-        self.upsampling1 = UpsamplingPixelShuffle(input_channels=2 * self.number_of_channels,
-                                                  output_channels=self.number_of_channels,ratio=2)
-
-
-        self.relu = nn.ReLU(inplace=False)#nn.LeakyReLU(0.2, inplace=True)
-        self.conv_output = nn.Conv3d(in_channels=4*self.number_of_channels,out_channels=self.number_of_outputs-1,kernel_size=3, stride=1,padding=1,bias=True)
-        self.softmax = nn.Sigmoid()
-
-        #for m in self.modules():
-        #    if isinstance(m, nn.Conv2d):
-        #        n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-        #        m.weight.data.normal_(0, math.sqrt(2. / n))
-        #        if m.bias is not None:
-        #            m.bias.data.zero_()
-
-
-    def forward(self, x):
-        skip_connections = []
-        gc.collect()
-        input = x[0]
-
-        ci = self.conv_input(input)
-        lv0 = self.encoder_conv0_1(ci)
-        lv0 = self.encoder_conv0_2(lv0)
-
-        pc1 = self.pooling_conv1(ci)
-        lv1 = self.encoder_conv1_1(pc1)
-        lv1 = self.encoder_conv1_2(lv1)
-
-        pc2 = self.pooling_conv2(ci)
-        lv2 = self.encoder_conv2_1(pc2)
-        lv2 = self.encoder_conv2_2(lv2)
-
-        pc3 = self.pooling_conv3(ci)
-        lv3 = self.encoder_conv3_1(pc3)
-        lv3 = self.encoder_conv3_2(lv3)
-
-        up1 = self.upsampling1(lv1)
-        up2 = self.upsampling2(lv2)
-        up3 = self.upsampling3(lv3)
-
-
-        cat1 = torch.cat([lv0,up1,up2,up3], dim=1)
-
-        out = self.conv_output(cat1)
-        out = self.self.softmax(out)
-
-        return [out]
