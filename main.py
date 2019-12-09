@@ -27,6 +27,7 @@ parser.add_argument("--models_path", default="/models", type=str, help="path to 
 parser.add_argument("--gpus", default=1, type=int, help="number of gpus")
 
 
+
 def worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
