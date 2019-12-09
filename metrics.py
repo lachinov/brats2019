@@ -111,14 +111,14 @@ class Dice(Metrics):
 
         assert (gr.shape == pred.shape)
 
-        pred = torch.argmax(pred, dim=1).long().view(pred.size(0),-1)
-        gr = torch.argmax(gr, dim=1).long().view(gr.size(0),-1)
+        pred = pred > 0.5#torch.argmax(pred, dim=1).long().view(pred.size(0),-1)
+        gr = gr > 0.5#torch.argmax(gr, dim=1).long().view(gr.size(0),-1)
 
         result = np.zeros(shape = (pred.shape[0],self.classes-1))
 
-        for i in range(1, self.classes):
-            p = (pred == i).float()
-            g = (gr == i).float()
+        for i in range(0, self.classes-1):
+            p = pred[:,i].float().view(pred.size(0),-1)#(pred == i).float()
+            g = gr[:,i].float().view(pred.size(0),-1)#(gr == i).float()
 
             numerator = (p * g).sum(dim=1).cpu().numpy()
             denominator = (p + g).sum(dim=1).cpu().numpy()
@@ -126,7 +126,7 @@ class Dice(Metrics):
             r = 2 * numerator / denominator
             r[np.isnan(r)] = 1
 
-            result[:,i-1] = r
+            result[:,i] = r
 
         self.accumulator = self.accumulator + result.mean(axis=0)
 
@@ -202,15 +202,15 @@ class Hausdorff_ITK(Metrics):
         #pred = torch.argmax(pred, dim=1).long().cpu().numpy()
         #gr = torch.argmax(gr, dim=1).long().cpu().numpy()
 
-        pred = torch.argmax(pred, dim=1).long().cpu().numpy()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(pred, dim=1).long()
-        gr = torch.argmax(gr, dim=1).long().cpu().numpy()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(gr, dim=1).long()
+        pred = (pred > 0.5).long().cpu().numpy()#torch.argmax(pred, dim=1).long().cpu().numpy()#((torch.argmax(pred, dim=1) + 1) * (torch.max(pred, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(pred, dim=1).long()
+        gr = (gr > 0.5).long().cpu().numpy()#torch.argmax(gr, dim=1).long().cpu().numpy()#((torch.argmax(gr, dim=1) + 1) * (torch.max(gr, dim=1)[0] > 0.5).long()).long().cpu().numpy()#torch.argmax(gr, dim=1).long()
 
         result = np.zeros(shape = (pred.shape[0],self.classes-1))
 
         for n in range(pred.shape[0]):
-            for i in range(1, self.classes):
-                p = (pred[n] == i).astype(np.uint8)
-                g = (gr[n] == i).astype(np.uint8)
+            for i in range(0, self.classes-1):
+                p = pred[n,i].astype(np.uint8)
+                g = gr[n,i].astype(np.uint8)
 
                 if p.sum() == 0 and g.sum() == 0:
                     result[n,i-1] = 0
@@ -224,7 +224,7 @@ class Hausdorff_ITK(Metrics):
                     print("Hausdorff_ITK:RuntimeError")
                     pass
 
-                result[n,i-1] = r
+                result[n,i] = r
 
         self.accumulator = self.accumulator + result.mean(axis=0)
 

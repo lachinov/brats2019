@@ -58,7 +58,7 @@ class Trainer(object):
 
     def train(self, criterion, optimizer, optimizer_params, scheduler, scheduler_params, training_data_loader,
               evaluation_data_loader, split_into_tiles, pretrained_weights, train_metrics, val_metrics,
-              track_metric, epoches, default_val, comparator, eval_cpu):
+              track_metric, epoches, default_val, comparator, eval_cpu, continue_form_pretraining):
 
         self.eval_cpu = eval_cpu
 
@@ -74,6 +74,8 @@ class Trainer(object):
         elif pretrained_weights is not None:
             # load dictionary only
             self.model.load_state_dict(pretrained_weights)
+        elif continue_form_pretraining:
+            print('Continue from pretraining')
         else:
             self.state.best_val = default_val
 
@@ -87,7 +89,7 @@ class Trainer(object):
         assert (isinstance(optimizer, torch.optim.Optimizer))
         assert (isinstance(scheduler, torch.optim.lr_scheduler._LRScheduler) or scheduler is None)
 
-        if self.state.optimizer_state is not None:
+        if self.state.optimizer_state is not None and not continue_form_pretraining:
             optimizer.load_state_dict(self.state.optimizer_state)
             print('Loaded optimizer state')
 
@@ -132,7 +134,7 @@ class Trainer(object):
 
         with torch.no_grad():
             assert (isinstance(batch[0], list))
-            data = [Variable(b) for b in batch[0]]
+            data = batch[0]
 
             if self.state.cuda:
                 data = [d.cuda() for d in data]
@@ -251,6 +253,10 @@ class Trainer(object):
             #torch.cuda.empty_cache()
 
             assert (isinstance(batch[0], list) and isinstance(batch[1], list))
+
+            data = batch[0]
+            target = batch[1]
+
             if split_into_tiles and not self.eval_cpu:
 
                 #TODO: this is a workaround to support tiling for only signle input
@@ -281,21 +287,20 @@ class Trainer(object):
                 output = [output]
 
             elif self.eval_cpu:
-                data = batch[0]#[b.cuda() for b in batch[0]]
                 tmp_model = self.model.module.cpu()
                 tmp_model.eval()
                 with torch.no_grad():
                     output = tmp_model(data)
 
             else:
-                data = [Variable(b) for b in batch[0]]
+                with torch.no_grad():
+                    if self.state.cuda:
+                        data = [d.cuda() for d in data]
+                        target = [t.cuda() for t in target]
 
-                if self.state.cuda:
-                    data = [d.cuda() for d in data]
+                    output = self.model(data)
 
-                output = self.model(data)
 
-            target = [Variable(b, requires_grad=False) for b in batch[1]]
             for m in val_metrics:
                 m.update(target, output)
 

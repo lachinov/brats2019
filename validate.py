@@ -6,9 +6,9 @@ import metrics
 import numpy as np
 
 
-parser = argparse.ArgumentParser(description="PyTorch validate")
+parser = argparse.ArgumentParser(description="PyTorch BraTS2019 Validate")
 parser.add_argument("--data_path", default="", type=str, help="path to train data")
-parser.add_argument("--predictions_path", default="", type=str, help="path to train data")
+parser.add_argument("--predictions_path", default="", type=str, help="path to output data")
 
 series_val = ['BraTS19_2013_0_1',
               'BraTS19_2013_12_1',
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     series = [f for f in os.listdir(path_input) if os.path.isdir(os.path.join(path_input, f))]
     series.sort()
 
-    series = series_val19
+    #series = series_val19
 
     dice = metrics.Dice(input_index=0)
     dicewt = metrics.DiceWT(input_index=0)

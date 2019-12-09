@@ -1,6 +1,4 @@
 #https://gist.github.com/jeasinema/ed9236ce743c8efaf30fa2ff732749f5
-#!/usr/bin/env python
-# -*- coding:UTF-8 -*-
 
 import torch
 import torch.nn as nn
@@ -22,8 +20,8 @@ def weight_init(m):
         if m.bias is not None:
             init.normal_(m.bias.data)
     elif isinstance(m, nn.Conv3d):
-        #init.kaiming_normal_(m.weight.data,a=2e-2,nonlinearity='leaky_relu')
-        init.xavier_normal_(m.weight.data)
+        init.kaiming_normal_(m.weight.data,a=1e-2,nonlinearity='leaky_relu')
+        #init.xavier_normal_(m.weight.data)
         if m.bias is not None:
             #init.zeros_(m.bias.data)
             init.normal_(m.bias.data)

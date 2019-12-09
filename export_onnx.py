@@ -5,11 +5,11 @@ import os
 
 
 
-parser = argparse.ArgumentParser(description="PyTorch SegTHOR")
+parser = argparse.ArgumentParser(description="PyTorch BraTS2019")
 #parser.add_argument("--test_path", default="", type=str, help="path to train data")
 parser.add_argument("--name", default="test", type=str, help="experiment name")
 parser.add_argument("--models_path", default="/models", type=str, help="path to models folder")
-parser.add_argument("--input_size", default=(512, 512, 176), help="Input image size", nargs="+", type=int)
+parser.add_argument("--input_size", default=(128, 128, 128), help="Input image size", nargs="+", type=int)
 
 
 def main():

@@ -11,10 +11,10 @@ from scipy.ndimage import zoom
 from skimage.filters import threshold_otsu
 import pickle
 from scipy.ndimage.filters import median_filter
+from skimage import morphology
 
 
-parser = argparse.ArgumentParser(description="PyTorch SegTHOR")
-#parser.add_argument("--test_path", default="", type=str, help="path to train data")
+parser = argparse.ArgumentParser(description="PyTorch BraTS2019")
 parser.add_argument("--name", default="test", type=str, help="experiment name")
 parser.add_argument("--models_path", default="/models", type=str, help="path to models folder")
 
@@ -45,69 +45,79 @@ series_val = ['BraTS19_2013_0_1',
               'BraTS19_CBICA_BBG_1',
               'BraTS19_TMC_15477_1']
 
+def get_bbox(data):
+    bboxes = np.stack([loader_helper.bbox3(d) for d in data],axis=0)
+    return np.stack([np.min(bboxes[:,0],axis=0),np.max(bboxes[:,1],axis=0)],axis=0)
+
+def reject_small_regions(connectivity, ratio=0.25):
+    resulting_connectivity = connectivity.copy()
+    unique, counts = np.unique(connectivity, return_counts=True)
+
+    all_nonzero_clusters = np.prod(connectivity.shape) - np.max(counts)
+
+    for i in range(unique.shape[0]):
+        if counts[i] < ratio * all_nonzero_clusters:
+            resulting_connectivity[resulting_connectivity == unique[i]] = 0
+
+    return resulting_connectivity
+
 if __name__ == '__main__':
     opt = parser.parse_args()
     print(torch.__version__)
     print(opt)
-    path = '/home/dlachinov/brats2019/data/2019_cropped'
+    path = '/home/dlachinov/brats2019/data/MICCAI_BraTS_2018_Data_Validation'
     output_path = '/home/dlachinov/brats2019/data/out'
 
     trainer = train.Trainer(name=opt.name, models_root=opt.models_path, rewrite=False, connect_tb=False)
-    trainer.load_latest()#_load('_epoch_78')
-    trainer.model = trainer.model.module.cpu()
-    # trainer.model.eval()
-    trainer.state.cuda = False
+    trainer.load_best()
+    trainer.state.cuda = True
 
     series = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
     series.sort()
 
     print(series)
 
-    for f in series_val:
+    for f in series:
 
-        image, label, affine = loader_helper.read_multimodal(path, f, True)
+        image, label, affine = loader_helper.read_multimodal(data_path=path, series=f, read_annotation=False)
+
+        bbox = get_bbox(image)
+
+
+        image_crop = image[:,bbox[0,0]:bbox[1,0],bbox[0,1]:bbox[1,1],bbox[0,2]:bbox[1,2]]
 
 
         #data_crop = median_filter(data_crop, 3)
 #=========================================
-        old_shape_crop = image.shape[1:]
+        old_shape_crop = image_crop.shape[1:]
         new_shape_crop = tuple([loader_helper.closest_to_k(i, 16) for i in old_shape_crop])
         diff = np.array(new_shape_crop) - np.array(old_shape_crop)
         pad_left = diff // 2
         pad_right = diff - pad_left
 
-        #new_data_crop = np.full(shape=new_shape_crop, fill_value=-1000., dtype=np.float32)
-        #new_data_crop[:old_shape_crop[0], :old_shape_crop[1], :old_shape_crop[2]] = data_crop
-
-        new_data_crop = np.pad(image, pad_width=((0,0),)+tuple([(pad_left[i], pad_right[i]) for i in range(3)]),
-                           mode='reflect')
+        new_data_crop = np.pad(image_crop, pad_width=((0,0),)+tuple([(pad_left[i], pad_right[i]) for i in range(3)]),
+                           mode='constant', constant_values=0)
 
 
 
         mask = new_data_crop > 0
         num_voxels = np.sum(mask, axis=(1, 2, 3))
 
-        mean = np.sum(new_data_crop, axis=(1, 2, 3)) / num_voxels
-        mean2 = np.sum(new_data_crop ** 2, axis=(1, 2, 3)) / num_voxels
+        mean = np.sum(new_data_crop / num_voxels[:,None,None,None], axis=(1, 2, 3))
+        mean2 = np.sum(np.square(new_data_crop)/ num_voxels[:,None,None,None], axis=(1, 2, 3))
+
 
         std = np.sqrt(mean2 - mean * mean)
 
         new_data_crop = (new_data_crop- mean.reshape((new_data_crop.shape[0], 1, 1, 1))) / std.reshape(
             (new_data_crop.shape[0], 1, 1, 1))
-        new_data_crop[~mask] = 0
-
-        #new_data_crop = new_data_crop.transpose((2,1,0))
 
         new_data_crops = []
 
         new_data_crops.append(new_data_crop)
-        #new_data_crops.append(new_data_crop[::-1,:,:].copy())
-        #new_data_crops.append(new_data_crop[:,::-1,:].copy())
-        #new_data_crops.append(new_data_crop[::-1,::-1,:].copy()*1.2)
-        #new_data_crops.append(new_data_crop*1.2)
-        ##new_data_crops.append(new_data_crop[:,::-1,:].copy()+0.1)
-        ##new_data_crops.append(new_data_crop[:,:,::-1].copy()+0.1)
-        ##new_data_crops.append(new_data_crop[:,::-1,::-1].copy()+0.1)
+        new_data_crops.append(new_data_crop[:,::-1,:,:].copy())
+        new_data_crops.append(new_data_crop[:,:,::-1,:].copy())
+        new_data_crops.append(new_data_crop[:,::-1,::-1,:].copy())
 
         # tta
         outputs = []
@@ -117,45 +127,50 @@ if __name__ == '__main__':
             output = trainer.predict([[new_data_crop], ])
 
             output_full = output[0].cpu().detach().numpy()[0]
-            #output_ds = output[1].cpu().detach().numpy()[0]
-            #output_ds = zoom(output_ds, (1,4,4,4), order=1, mode='constant', cval=0)
-            #output_crop = (output_ds + output_full)/2
             output_crop = output_full
 
             outputs.append(output_crop)
 
-        #outputs[1] = outputs[1][:, ::-1, :, :].copy()
-        ##outputs[5] = outputs[5][:, :, ::-1, :].copy()
-
-        #outputs[2] = outputs[2][:, :, ::-1, :].copy()
-        ##outputs[6] = outputs[6][:, :, :, ::-1].copy()
-
-        #outputs[3] = outputs[3][:, ::-1, ::-1, :].copy()
-        ##outputs[7] = outputs[7][:, :, :, ::-1].copy()
-
-        #for idx, o in enumerate(outputs):
-        #    outputs[idx] = o.transpose((0, 3, 2, 1))
-
-        #for idx, o in enumerate(outputs):
-        #    o = np.argmax(o, axis=0).astype(np.int32)
-        #    output_header = nii.Nifti1Image(o, affine)
-        #    nii.save(output_header, os.path.join(output_path, image_name[:-7] + str(idx) + '.nii'))
-
-        # break
+        outputs[1] = outputs[1][:, ::-1, :, :].copy()
+        outputs[2] = outputs[2][:, :, ::-1, :].copy()
+        outputs[3] = outputs[3][:, ::-1, ::-1, :].copy()
 
         output_crop = sum(outputs) / len(outputs)
-        #output_crop = output_crop[:, :old_shape_crop[0], :old_shape_crop[1], :old_shape_crop[2]]
 
         output_crop = output_crop[:, pad_left[0]:-pad_right[0] or None, pad_left[1]:-pad_right[1] or None,
                  pad_left[2]:-pad_right[2] or None]
 
 # ==========================
+        output_crop = output_crop > 0.5
 
-        output_crop = np.argmax(output_crop,axis=0).astype(np.uint8)
+        wt = output_crop[0]
+        tc = output_crop[1]
+        et = output_crop[2]
 
-        output_header = nii.Nifti1Image(output_crop, affine)
+        wt_vol = wt.sum()
+        tc_vol = tc.sum()
+        et_vol = et.sum()
+
+
+        output_crop = np.zeros(shape = output_crop.shape[1:],dtype = np.uint8)
+        output_crop[wt] = 2
+        output_crop[tc] = 1
+        if et_vol > 32:
+            output_crop[et] = 4
+
+
+        connected_regions = morphology.label(output_crop > 0)
+        clusters = reject_small_regions(connected_regions, 0.1)
+        output_crop[clusters == 0] = 0
+
+
+        output = np.zeros(shape=image.shape[1:],dtype=np.uint8)
+        output[bbox[0, 0]:bbox[1, 0], bbox[0, 1]:bbox[1, 1], bbox[0, 2]:bbox[1, 2]] = output_crop
+
+
+        output_header = nii.Nifti1Image(output, affine)
 
         nii.save(output_header, os.path.join(output_path,f+'.nii.gz'))
 
 
-        print(f, output_crop.shape, output_crop.dtype)
+        print(f, output_crop.shape, output_crop.dtype, wt_vol, tc_vol, et_vol)
