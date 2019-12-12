@@ -22,7 +22,11 @@ This repository contains the code for inferencing the distilled model.
 
 ## Pre-trained model
 Download checkpoint with the following [link](https://drive.google.com/file/d/1YX5B3fV_g7eDMIr2Ow5cN0CGNNIYn4Y0/view?usp=sharing), where the model has the name `brain-tumor-segmentation-0002`.
-
+You can also download [onnx version](https://drive.google.com/file/d/1NhH51NgKJKhu0Bax_IKQ_Byvoe2bItPX/view?usp=sharing) for cpu inference with [OpenVino](https://software.intel.com/en-us/openvino-toolkit). 
+The onnx model has a few modifications to match ONNX and OpenVino standards:
+* It takes image of size `128x128x128` as an input
+* It uses nearest neighbour upsampling instead of trilinear one
+* It includes group norm operation from OpenVino
 
 ## How to perform prediction
 1. Download BraTS data
@@ -66,7 +70,7 @@ sklearn                0.0
 tensorboardX           1.8
 torch                  1.2.0      
 torchvision            0.4.0
-tqdm                   4.32.2x`
+tqdm                   4.32.2
 ```
 
 ## Citation
