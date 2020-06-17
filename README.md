@@ -75,13 +75,23 @@ tqdm                   4.32.2
 
 ## Citation
 
-Dmitrii Lachinov, Elena Shipunova, and Vadim Turlapov. "Knowledge Distillation for Brain Tumor Segmentation." arXiv preprint arXiv:2002.03688 (2020).
+Lachinov D., Shipunova E., Turlapov V. (2020) Knowledge Distillation for Brain Tumor Segmentation. In: Crimi A., Bakas S. (eds) Brainlesion: Glioma, Multiple Sclerosis, Stroke and Traumatic Brain Injuries. BrainLes 2019. Lecture Notes in Computer Science, vol 11993. Springer, Cham
 
 ```
-@article{lachinov2020knowledge,
-  title={Knowledge Distillation for Brain Tumor Segmentation},
-  author={Lachinov, Dmitrii and Shipunova, Elena and Turlapov, Vadim},
-  journal={arXiv preprint arXiv:2002.03688},
-  year={2020}
+@InProceedings{10.1007/978-3-030-46643-5_32,
+author="Lachinov, Dmitrii
+and Shipunova, Elena
+and Turlapov, Vadim",
+editor="Crimi, Alessandro
+and Bakas, Spyridon",
+title="Knowledge Distillation for Brain Tumor Segmentation",
+booktitle="Brainlesion: Glioma, Multiple Sclerosis, Stroke and Traumatic Brain Injuries",
+year="2020",
+publisher="Springer International Publishing",
+address="Cham",
+pages="324--332",
+abstract="The segmentation of brain tumors in multimodal MRIs is one of the most challenging tasks in medical image analysis. The recent state of the art algorithms solving this task are based on machine learning approaches and deep learning in particular. The amount of data used for training such models and its variability is a keystone for building an algorithm with high representation power.",
+isbn="978-3-030-46643-5"
 }
+
 ```
